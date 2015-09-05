@@ -1,13 +1,17 @@
+#include <linux/init.h> 
 #include <linux/module.h>
+#include <linux/kernel.h>
 #include <linux/netdevice.h>
 #include <linux/skbuff.h>
 #include <linux/ip.h>
 #include <net/sock.h>
+#include "utils.h"
 
 MODULE_LICENSE("GPL");
 
 static struct packet_type pt;
 static struct iphdr *ip_header;
+static const char *module_prefix = "udp_device_filter";
 
 int packet_interceptor(struct sk_buff *skb,
     struct net_device *dev,
@@ -20,24 +24,27 @@ int packet_interceptor(struct sk_buff *skb,
 	}
 	
 	if (ip_header->protocol == IPPROTO_UDP) {
-		printk(KERN_INFO "got udp packet in device\n");
+		klog_info(module_prefix, "got udp packet in device\n");
 	}
 	return 0;
 }
 
-int init_module() {
+static int __init init_udp_device_filter_module(void) {
 	
 	pt.type = htons(ETH_P_ALL);
 	pt.dev = NULL;
 	pt.func = packet_interceptor;
 	
 	dev_add_pack(&pt);
-	printk(KERN_INFO "udp_device_filter added\n");
 	
+	klog_info(module_prefix, "udp_device_filter added\n");
 	return 0;
 }
 
-void cleanup_module() {
+static void __exit cleanup_udp_device_filter_module(void) {
 	dev_remove_pack(&pt);
-	printk(KERN_INFO "udp_device_filter removed\n");
+	klog_info(module_prefix, "udp_device_filter removed\n");
 }
+
+module_init(init_udp_device_filter_module);
+module_exit(cleanup_udp_device_filter_module);
