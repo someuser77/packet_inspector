@@ -5,13 +5,15 @@
 #include <linux/skbuff.h>
 #include <linux/ip.h>
 #include <net/sock.h>
+
+#define MODULE_NAME "udp_device_filter"
+
 #include "utils.h"
 
 MODULE_LICENSE("GPL");
 
 static struct packet_type pt;
 static struct iphdr *ip_header;
-static const char *module_prefix = "udp_device_filter";
 
 int packet_interceptor(struct sk_buff *skb,
     struct net_device *dev,
@@ -24,7 +26,7 @@ int packet_interceptor(struct sk_buff *skb,
 	}
 	
 	if (ip_header->protocol == IPPROTO_UDP) {
-		klog_info(module_prefix, "got udp packet in device\n");
+		klog_info("got udp packet in device\n");
 	}
 	return 0;
 }
@@ -37,13 +39,13 @@ static int __init init_udp_device_filter_module(void) {
 	
 	dev_add_pack(&pt);
 	
-	klog_info(module_prefix, "udp_device_filter added\n");
+	klog_info("udp_device_filter added\n");
 	return 0;
 }
 
 static void __exit cleanup_udp_device_filter_module(void) {
 	dev_remove_pack(&pt);
-	klog_info(module_prefix, "udp_device_filter removed\n");
+	klog_info("udp_device_filter removed\n");
 }
 
 module_init(init_udp_device_filter_module);
