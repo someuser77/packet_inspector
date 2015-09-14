@@ -7,22 +7,22 @@
 
 #define klog_error(format, arg...)																			\
 				do {																													\
-					printk(KERN_ERR "[%s:%s] *ERROR* %s", MODULE_NAME, __func__, format, ##arg);	\
+					printk(KERN_ERR "[%s:%s] *ERROR* " format "\n", MODULE_NAME, __func__, ##arg);	\
 				}	while (0)
 
 #define klog_warn(format, arg...)																			\
 				do {																													\
-					printk(KERN_WARN "[%s:%s] %s", MODULE_NAME, __func__, format, ##arg);				\
+					printk(KERN_WARNING "[%s:%s] " format "\n", MODULE_NAME, __func__, ##arg);				\
 				}	while (0)
 
 #define klog_info(format, arg...)																			\
 				do {																													\
-					printk(KERN_INFO "[%s:%s] %s", MODULE_NAME, __func__, format, ##arg);				\
+					printk(KERN_INFO "[%s:%s] " format "\n", MODULE_NAME, __func__, ##arg);				\
 				}	while (0)
 
 #define klog_debug(format, arg...)																		\
 				do {																													\
-					printk(KERN_DEBUG "[%s:%s] %s", MODULE_NAME, __func__, format, ##arg);			\
+					printk(KERN_DEBUG "[%s:%s] " format "\n", MODULE_NAME, __func__, ##arg);			\
 				}	while (0)
 
 #endif
