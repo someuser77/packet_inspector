@@ -172,7 +172,6 @@ void cleanup() {
 
 char *all_tests() {
 	mu_suite_start();
-	init();
 	mu_run_test(test_FilterOptions_NULL_After_Destroy);
 	mu_run_test(test_FilterOptions_SetGetSrcMac);
 	mu_run_test(test_FilterOptions_SetGetDstMac);
@@ -184,8 +183,7 @@ char *all_tests() {
 	mu_run_test(test_FilterOptions_SetGetProtocol);
 	mu_run_test(test_FilterOptions_SetGetSrcPort);
 	mu_run_test(test_FilterOptions_SetGetDstPort);
-	cleanup();
 	return NULL;
 }
 
-RUN_TESTS(all_tests);
+RUN_TESTS_WITH_SETUP(all_tests, init, cleanup);
