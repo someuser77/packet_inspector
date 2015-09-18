@@ -1,4 +1,4 @@
-CFLAGS=-Wall -Wextra -Isrc/lib $(OPTFLAGS)
+CFLAGS=-g -Wall -Wextra -Isrc/lib $(OPTFLAGS)
 
 # all .c files in source and below
 SOURCES=$(filter-out $(wildcard src/modules/*.c src/modules/**/*.c src/$(TARGET).c), $(wildcard src/**/*.c src/*.c))
