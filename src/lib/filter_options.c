@@ -15,7 +15,9 @@ typedef struct {
 	uint32_t dstIp;
 	unsigned char srcIp6[IP6_ALEN];
 	unsigned char dstIp6[IP6_ALEN];
-	char device[IFNAMSIZ];
+	char device[IFNAMSIZ];	/* IFNAMSIZ is the constant defines the maximum buffer size needed
+												to hold an interface name, including its terminating zero byte. 
+												http://www.gnu.org/software/libc/manual/html_node/Interface-Naming.html */
 	unsigned char protocol;
 	uint16_t srcPort;
 	uint16_t dstPort;	
@@ -57,113 +59,115 @@ static void set(FilterOptions *self, int bit) {
 	set_bit(impl(self)->map, bit);
 }
 
-static FilterSetResult setSrcMac(FilterOptions *self, unsigned char (*mac)[ETH_ALEN]) {
+static bool setSrcMac(FilterOptions *self, const unsigned char const mac[ETH_ALEN]) {
 	set(self, SRC_MAC_SET_BIT);
 	memcpy(impl(self)->srcMac, mac, ETH_ALEN);
-	return FilterSetResult_Success;
+	return true;
 }
 
-static int getSrcMac(struct FilterOptions *self, unsigned char (*mac)[ETH_ALEN]) {
+static int getSrcMac(struct FilterOptions *self, unsigned char mac[ETH_ALEN]) {
 	if (!isSrcMacSet(self)) return -1;
 	memcpy(mac, impl(self)->srcMac, ETH_ALEN);
 	return 0;
 }
 
-static FilterSetResult setDstMac(FilterOptions *self, unsigned char (*mac)[ETH_ALEN]) {
+static bool setDstMac(FilterOptions *self, const unsigned char const mac[ETH_ALEN]) {
 	set(self, DST_MAC_SET_BIT);
 	memcpy(impl(self)->dstMac, mac, ETH_ALEN);
-	return FilterSetResult_Success;
+	return true;
 }
 
-static int getDstMac(struct FilterOptions *self, unsigned char (*mac)[ETH_ALEN]) {
+static int getDstMac(struct FilterOptions *self, unsigned char mac[ETH_ALEN]) {
 	if (!isDstMacSet(self)) return -1;
 	memcpy(mac, impl(self)->dstMac, ETH_ALEN);
 	return 0;
 }
 
-static FilterSetResult setSrcIp(struct FilterOptions *self, uint32_t addr) {
+static bool setSrcIp(struct FilterOptions *self, uint32_t addr) {
 	set(self, SRC_IP_SET_BIT);
 	impl(self)->srcIp = addr;
-	return FilterSetResult_Success;
+	return true;
 }
 
 static uint32_t getSrcIp(struct FilterOptions *self) {
 	return impl(self)->srcIp;
 }
 
-static FilterSetResult setDstIp(struct FilterOptions *self, uint32_t addr) {
+static bool setDstIp(struct FilterOptions *self, uint32_t addr) {
 	set(self, DST_IP_SET_BIT);
 	impl(self)->dstIp = addr;
-	return FilterSetResult_Success;
+	return true;
 }
 
 static uint32_t getDstIp(struct FilterOptions *self) {
 	return impl(self)->dstIp;
 }
 
-static FilterSetResult setSrcIp6(struct FilterOptions *self, unsigned char (*addr)[IP6_ALEN]) {
+static bool setSrcIp6(struct FilterOptions *self, const unsigned char const addr[IP6_ALEN]) {
 	set(self, SRC_IP6_SET_BIT);
 	memcpy(impl(self)->srcIp6, addr, IP6_ALEN);
-	return FilterSetResult_Success;
+	return true;
 }
 
-static int getSrcIp6(struct FilterOptions *self, unsigned char (*addr)[IP6_ALEN]) {
+static int getSrcIp6(struct FilterOptions *self, unsigned char addr[IP6_ALEN]) {
 	if (!isSrcIp6Set(self)) return -1;
 	memcpy(addr, impl(self)->srcIp6, IP6_ALEN);
 	return 0;
 }
 
-static FilterSetResult setDstIp6(struct FilterOptions *self, unsigned char (*addr)[IP6_ALEN]) {
+static bool setDstIp6(struct FilterOptions *self, const unsigned char const addr[IP6_ALEN]) {
 	set(self, DST_IP6_SET_BIT);
 	memcpy(impl(self)->dstIp6, addr, IP6_ALEN);
-	return FilterSetResult_Success;
+	return true;
 }
 
-static int getDstIp6(struct FilterOptions *self, unsigned char (*addr)[IP6_ALEN]) {
+static int getDstIp6(struct FilterOptions *self, unsigned char addr[IP6_ALEN]) {
 	if (!isDstIp6Set(self)) return -1;
 	memcpy(addr, impl(self)->dstIp6, IP6_ALEN);
 	return 0;
 }
 
-FilterSetResult setDevice(struct FilterOptions *self, char *device, int len) {
+int setDevice(struct FilterOptions *self, const char const *device, int len) {
+	if (len < 0) return -1;
 	set(self, DEVICE_SET_BIT);
-	len = (len > IFNAMSIZ - 1) ? IFNAMSIZ-1 : len;
+	if (len > IFNAMSIZ - 1) len = IFNAMSIZ - 1;
+	memset(impl(self)->device, '\0', IFNAMSIZ);
 	memcpy(impl(self)->device, device, len);
-	*(impl(self)->device + len) ='\0';
-	return FilterSetResult_Success;
+	return len;
 }
 
 int getDevice(struct FilterOptions *self, char *device) {
 	if (!isDeviceSet(self)) return -1;
 	int len = strlen(impl(self)->device);
-	memcpy(impl(self)->device, device, len);
+	memcpy(device, impl(self)->device, len);
+	device[len] = '\0';
 	return len;
 }
 
-FilterSetResult setProtocol(struct FilterOptions *self, unsigned char protocol) {
+bool setProtocol(struct FilterOptions *self, unsigned char protocol) {
 	set(self, PROTOCOL_SET_BIT);
 	impl(self)->protocol = protocol;
-	return FilterSetResult_Success;
+	return true;
 }
 
 unsigned char getProtocol(struct FilterOptions *self) {
 	return impl(self)->protocol;
 }
 
-FilterSetResult setSrcPort(struct FilterOptions *self, uint16_t port) {
+bool setSrcPort(struct FilterOptions *self, uint16_t port) {
 	set(self, SRC_PORT_SET_BIT);
 	impl(self)->srcPort = port;
-	return FilterSetResult_Success;
+	return true;
 }
 
 uint16_t getSrcPort(struct FilterOptions *self) {
 	return impl(self)->srcPort;
 }
 	
-FilterSetResult setDstPort(struct FilterOptions *self, uint16_t port) {
+bool setDstPort(struct FilterOptions *self, uint16_t port) {
 	set(self, DST_PORT_SET_BIT);
 	impl(self)->dstPort = port;
-	return FilterSetResult_Success;
+	return true;
 }
 
 uint16_t getDstPort(struct FilterOptions *self) {
