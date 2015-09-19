@@ -23,7 +23,8 @@ typedef enum {
 	Filter_Device,
 	Filter_Protocol,
 	Filter_SrcPort,
-	Filter_DstPort
+	Filter_DstPort,
+	Filter_EtherType
 } FilterType;
 
 typedef struct FilterOptions {
@@ -60,7 +61,7 @@ typedef struct FilterOptions {
 	int (*getDstIp6)(struct FilterOptions *self, unsigned char addr[IP6_ALEN]);
 	
 	bool (*isDeviceSet)(struct FilterOptions *self);
-	int (*setDevice)(struct FilterOptions *self, const char const *device, int len);
+	int (*setDevice)(struct FilterOptions *self, const char * const device, int len);
 	int (*getDevice)(struct FilterOptions *self, char device[IFNAMSIZ]);
 	
 	bool (*isProtocolSet)(struct FilterOptions *self);
