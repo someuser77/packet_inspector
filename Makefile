@@ -1,10 +1,12 @@
-CFLAGS=-g -Wall -Wextra -Isrc/lib $(OPTFLAGS)
+CFLAGS=-g -Wall -Wextra -Isrc/lib -Isrc/modules $(OPTFLAGS)
 
 # all .c files in source and below
 SOURCES=$(filter-out $(wildcard src/modules/*.c src/modules/**/*.c src/$(TARGET).c), $(wildcard src/**/*.c src/*.c))
+SOURCES += src/modules/packet_filter.c
 OBJECTS=$(SOURCES:.c=.o)
 
 TEST_SRC=$(wildcard tests/*.c tests/**/*.c)
+
 TEST_OBJ=$(TEST_SRC:.c=.o)
 TESTS=$(TEST_SRC:.c=)
 
