@@ -1,6 +1,6 @@
 //#include <linux/in.h>
 #include <arpa/inet.h>
-//#include <linux/socket.h>
+//#include <linux/socket.h> // for AF_INET6
 #include "../minunit.h"
 #include "packet_filter.h"
 
@@ -33,6 +33,7 @@ const unsigned char tcp_ip_packet[] = {
 	0x6c, 0x69, 0x76, 0x65, 0x0d, 0x0a, 0x0d, 0x0a
 };
 
+// sample capture from https://www.cloudshark.org/captures/91745cbe14d1 (Frame 2)
 const unsigned char udp_ip6_packet[] = {
 	0x00, 0x50, 0x56, 0x87, 0x06, 0xb6, 0x54, 0x75,
 	0xd0, 0xc9, 0x0b, 0x81, 0x86, 0xdd, 0x60, 0x00,
@@ -60,7 +61,7 @@ const unsigned char udp_ip6_packet[] = {
 	0x04
 };
 
-static inline struct ethhdr * eth_header(const void *packet) {
+static inline struct ethhdr *eth_header(const void *packet) {
 	return (struct ethhdr *)packet;
 }
 
@@ -68,8 +69,16 @@ static inline struct iphdr *ip_header(const void *packet) {
 	return (struct iphdr *)(packet + sizeof(struct ethhdr));
 }
 
-static inline struct tcphdr * tcp_ip_header(const void *packet) {
+static inline struct ipv6hdr *ip6_header(const void *packet) {
+	return (struct ipv6hdr *)(packet + sizeof(struct ethhdr));
+}
+
+static inline struct tcphdr *tcp_ip_header(const void *packet) {
 	return (struct tcphdr *)(packet + sizeof(struct ethhdr) + sizeof(struct iphdr));
+}
+
+static inline struct udphdr *udp_ip6_header(const void *packet) {
+	return (struct udphdr *)(packet + sizeof(struct ethhdr) + sizeof(struct ipv6hdr));
 }
 
 char *test_PacketFilter_FilterSrcMac() {
@@ -108,6 +117,22 @@ char *test_PacketFilter_FilterDstIp() {
 	return NULL;
 }
 
+char *test_PacketFilter_FilterSrcIp6() {
+	const unsigned char const ip6[IP6_ALEN];
+	inet_pton(AF_INET6, "2001:470:e5bf:1096:2:99:c1:10", &ip6);
+	Ip6PacketFilter *filter = PacketFilter_createIp6SrcIpFilter(ip6);
+	mu_assert(filter->match(filter, ip6_header(udp_ip6_packet)), "Source IPv6 did not match UDP packet.");
+	return NULL;
+}
+
+char *test_PacketFilter_FilterDstIp6() {
+	const unsigned char const ip6[IP6_ALEN];
+	inet_pton(AF_INET6, "2001:470:e5bf:1001:1cc7:73ff:65f5:a2f7", &ip6);
+	Ip6PacketFilter *filter = PacketFilter_createIp6DstIpFilter(ip6);
+	mu_assert(filter->match(filter, ip6_header(udp_ip6_packet)), "Destination IPv6 did not match UDP packet.");
+	return NULL;
+}
+
 char *test_PacketFilter_FilterTcpSrcPort() {
 	uint16_t port = 57678;
 	TcpPacketFilter *filter = PacketFilter_createTcpSrcPortFilter(port);
@@ -122,6 +147,22 @@ char *test_PacketFilter_FilterTcpDstPort() {
 	return NULL;
 }
 
+char *test_PacketFilter_FilterUdpSrcPort() {
+	uint16_t port = 161;
+	UdpPacketFilter *filter = PacketFilter_createUdpSrcPortFilter(port);
+	mu_assert(filter->match(filter, udp_ip6_header(udp_ip6_packet)), "Source port did not match UDP packet.");
+	return NULL;
+}
+
+char *test_PacketFilter_FilterUdpDstPort() {
+	uint16_t port = 46289;
+	UdpPacketFilter	*filter = PacketFilter_createUdpDstPortFilter(port);
+	mu_assert(filter->match(filter, udp_ip6_header(udp_ip6_packet)), "Destination port did not match UDP packet.");
+	return NULL;
+}
+
+
+
 char *all_tests() {
 	mu_suite_start();
 	mu_run_test(test_PacketFilter_FilterSrcMac);
@@ -129,8 +170,12 @@ char *all_tests() {
 	mu_run_test(test_PacketFilter_FilterIpProtocol);
 	mu_run_test(test_PacketFilter_FilterSrcIp);
 	mu_run_test(test_PacketFilter_FilterDstIp);
+	mu_run_test(test_PacketFilter_FilterSrcIp6);
+	mu_run_test(test_PacketFilter_FilterDstIp6);
 	mu_run_test(test_PacketFilter_FilterTcpSrcPort);
 	mu_run_test(test_PacketFilter_FilterTcpDstPort);
+	mu_run_test(test_PacketFilter_FilterUdpSrcPort);
+	mu_run_test(test_PacketFilter_FilterUdpDstPort);
 	return NULL;
 }
 

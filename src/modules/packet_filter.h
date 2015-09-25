@@ -70,11 +70,11 @@ EthPacketFilter *PacketFilter_createEthDstMacFilter(const unsigned char const ma
 
 EthPacketFilter *PacketFilter_createEthEthTypeFilter(unsigned short ethType);
 
-IpPacketFilter *PacketFilter_createIpIpSrcIpFilter(uint32_t ip);
-IpPacketFilter *PacketFilter_createIpIpDstIpFilter(uint32_t ip);
+IpPacketFilter *PacketFilter_createIpSrcIpFilter(uint32_t ip);
+IpPacketFilter *PacketFilter_createIpDstIpFilter(uint32_t ip);
 
-Ip6PacketFilter *PacketFilter_createIp6SrcIp6Filter(const unsigned char const Ip6[IP6_ALEN]);
-Ip6PacketFilter *PacketFilter_createIp6DstIp6Filter(const unsigned char const Ip6[IP6_ALEN]);
+Ip6PacketFilter *PacketFilter_createIp6SrcIpFilter(const unsigned char const Ip6[IP6_ALEN]);
+Ip6PacketFilter *PacketFilter_createIp6DstIpFilter(const unsigned char const Ip6[IP6_ALEN]);
 
 IpPacketFilter *PacketFilter_createIpProtocolFilter(unsigned char protocol);
 Ip6PacketFilter *PacketFilter_createIp6ProtocolFilter(unsigned char protocol);

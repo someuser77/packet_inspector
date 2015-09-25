@@ -186,7 +186,7 @@ static bool filterSrcIp6(const struct ipv6hdr * const packet, void *param) {
 static bool filterDstIp6(const struct ipv6hdr * const packet, void *param) {
 	unsigned char ip6[IP6_ALEN];
 	memcpy(ip6, param, IP6_ALEN);
-	return memcmp(packet->daddr.s6_addr, ip6, IP6_ALEN);
+	return memcmp(packet->daddr.s6_addr, ip6, IP6_ALEN) == 0;
 }
 
 static bool filterIpProtocol(const struct iphdr * const packet, void *param) {
@@ -412,11 +412,11 @@ static Ip6PacketFilter *PacketFilter_createIp6Filter(bool (*filterIp6)(const str
 	return filter;
 }
 
-Ip6PacketFilter *PacketFilter_createSrcIp6Filter(const unsigned char const ip6[IP6_ALEN]) {
+Ip6PacketFilter *PacketFilter_createIp6SrcIpFilter(const unsigned char const ip6[IP6_ALEN]) {
 	return PacketFilter_createIp6Filter(filterSrcIp6, ip6);
 }
 
-Ip6PacketFilter *PacketFilter_createDstIp6Filter(const unsigned char const ip6[IP6_ALEN]) {
+Ip6PacketFilter *PacketFilter_createIp6DstIpFilter(const unsigned char const ip6[IP6_ALEN]) {
 	return PacketFilter_createIp6Filter(filterDstIp6, ip6);
 }
 
