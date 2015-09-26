@@ -30,12 +30,6 @@ typedef enum {
 typedef struct FilterOptions {
 	void *FilterOptionsImpl;
 	
-	struct FilterOptions *(*init)();
-	
-	bool (*IsFilterSet)(struct FilterOptions *self, FilterType filterType);
-	
-	void (*clear)(struct FilterOptions *self);
-	
 	bool (*isSrcMacSet)(struct FilterOptions *self);
 	bool (*setSrcMac)(struct FilterOptions *self, const unsigned char const mac[ETH_ALEN]);
 	int (*getSrcMac)(struct FilterOptions *self, unsigned char mac[ETH_ALEN]);
