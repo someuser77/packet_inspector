@@ -175,6 +175,58 @@ char *test_FilterOptions_SetGetDstPort() {
 	return test_FilterOptions_SetGetPort(filterOptions->getDstPort, filterOptions->setDstPort, filterOptions, port);
 }
 
+char *test_FilterOptions_GetDescription() {
+	unsigned char srcMac[ETH_ALEN] = {0x1, 0x2, 0x3, 0x4, 0x5, 0x6};
+	unsigned char dstMac[ETH_ALEN] = {0x6, 0x5, 0x4, 0x3, 0x2, 0x1};
+	uint32_t srcIp, dstIp;
+	unsigned char srcIp6[IP6_ALEN] = { 0x1, 0x2, 0x3, 0x4, 0x5, 0x6, 0x7, 0x8, 0x9, 0xa, 0xb, 0xc, 0xd, 0xe, 0xf };
+	unsigned char dstIp6[IP6_ALEN] = { 0xf, 0xe, 0xd, 0xc, 0xb, 0xa, 0x9, 0x8, 0x7, 0x6, 0x5, 0x4, 0x3, 0x2, 0x1 };	
+	
+	
+	char *expected = "FilterOptions:\n"
+		"\tsrcMac: 1 dstMac: 1 srcIp: 1 dstIp: 1 srcIp6: 1 dstIp: 1 device: 1 protocol: 1 srcPort: 1 dstPort: 1\n"
+		"\tsrcMac: 01:02:03:04:05:06\n"
+		"\tdstMac: 06:05:04:03:02:01\n"
+		"\tsrcIp: 192.0.2.33\n"
+		"\tdstIp: 192.0.2.34\n"
+		"\tsrcIp6: 0102:0304:0506:0708:090a:0b0c:0d0e:0f00\n"
+		"\tdstIp6: 0f0e:0d0c:0b0a:0908:0706:0504:0302:0100\n"
+		"\tdevice: MyDevice\n"
+		"\tprotocol: 6\n"
+		"\tsrcPort: 123\n"
+		"\tdstPort: 65535\n";
+	
+	inet_pton(AF_INET, "192.0.2.33", &srcIp);
+	inet_pton(AF_INET, "192.0.2.34", &dstIp);
+	
+	filterOptions->setSrcMac(filterOptions, srcMac);
+	filterOptions->setDstMac(filterOptions, dstMac);
+	
+	filterOptions->setSrcIp(filterOptions, srcIp);
+	filterOptions->setDstIp(filterOptions, dstIp);
+	
+	filterOptions->setSrcIp6(filterOptions, srcIp6);
+	filterOptions->setDstIp6(filterOptions, dstIp6);
+	
+	filterOptions->setDevice(filterOptions, "MyDevice", 8);
+	
+	filterOptions->setProtocol(filterOptions, IPPROTO_TCP);
+	
+	filterOptions->setSrcPort(filterOptions, 123);
+	filterOptions->setDstPort(filterOptions, 65535);
+	
+	
+	char *description = filterOptions->description(filterOptions);
+	
+	//printf("%s\n", expected);
+	//printf("%s\n", description);
+	
+	mu_assert(strcmp(description, expected) == 0, "Description output did not match.");
+	
+	free(description);
+	return NULL;
+}
+
 void init() {
 	filterOptions = FilterOptions_Create();
 }
@@ -197,6 +249,7 @@ char *all_tests() {
 	mu_run_test(test_FilterOptions_SetGetProtocol);
 	mu_run_test(test_FilterOptions_SetGetSrcPort);
 	mu_run_test(test_FilterOptions_SetGetDstPort);
+	mu_run_test(test_FilterOptions_GetDescription);
 	return NULL;
 }
 

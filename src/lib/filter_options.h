@@ -76,7 +76,7 @@ typedef struct FilterOptions {
 	bool (*setDstPort)(struct FilterOptions *self, uint16_t port);
 	uint16_t (*getDstPort)(struct FilterOptions *self);
 	
-	char (*description)(struct FilterOptions *self);
+	char* (*description)(struct FilterOptions *self);
 	
 } FilterOptions;
 

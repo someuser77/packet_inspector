@@ -1,4 +1,14 @@
 #include <string.h>
+#include <stdarg.h>
+
+// for scnprintf
+#ifdef __KERNEL__
+#include <linux/kernel.h>
+#else
+#include <stdio.h>
+#endif
+
+
 #include "filter_options.h"
 
 #define set_bit(target, bit) ((target) |= 1<< (bit))
@@ -20,7 +30,7 @@ typedef struct {
 												http://www.gnu.org/software/libc/manual/html_node/Interface-Naming.html */
 	unsigned char protocol;
 	uint16_t srcPort;
-	uint16_t dstPort;	
+	uint16_t dstPort;
 } FilterOptionsImpl;
 
 inline FilterOptionsImpl* impl(FilterOptions *self) {
@@ -174,6 +184,58 @@ uint16_t getDstPort(struct FilterOptions *self) {
 	return impl(self)->dstPort;
 }
 
+static int snprintf_wrap(char *buf, size_t size, struct FilterOptions *self) {
+	const char *format = "FilterOptions:\n"
+							"\tsrcMac: %d dstMac: %d srcIp: %d dstIp: %d srcIp6: %d dstIp: %d device: %d protocol: %d srcPort: %d dstPort: %d\n"
+							"\tsrcMac: %02x:%02x:%02x:%02x:%02x:%02x\n"
+							"\tdstMac: %02x:%02x:%02x:%02x:%02x:%02x\n"
+							"\tsrcIp: %d.%d.%d.%d\n"
+							"\tdstIp: %d.%d.%d.%d\n"
+							"\tsrcIp6: %02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x\n"
+							"\tdstIp6: %02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x\n"
+							"\tdevice: %s\n"
+							"\tprotocol: %d\n"
+							"\tsrcPort: %hu\n"
+							"\tdstPort: %hu\n";	
+	
+	return snprintf(buf, size, format, 
+		isSrcMacSet(self), isDstMacSet(self), isSrcIpSet(self), isDstIpSet(self), isSrcIp6Set(self), isDstIp6Set(self), isDeviceSet(self), isProtocolSet(self), isSrcPortSet(self), isDstPortSet(self),
+		impl(self)->srcMac[0], impl(self)->srcMac[1], impl(self)->srcMac[2], impl(self)->srcMac[3], impl(self)->srcMac[4], impl(self)->srcMac[5],
+		impl(self)->dstMac[0], impl(self)->dstMac[1], impl(self)->dstMac[2], impl(self)->dstMac[3], impl(self)->dstMac[4], impl(self)->dstMac[5],
+		impl(self)->srcIp & 0xff, (impl(self)->srcIp >> 8) & 0xff, (impl(self)->srcIp >> 16) & 0xff, (impl(self)->srcIp >> 24) & 0xff,
+		impl(self)->dstIp & 0xff, (impl(self)->dstIp >> 8) & 0xff, (impl(self)->dstIp >> 16) & 0xff, (impl(self)->dstIp >> 24) & 0xff,
+		impl(self)->srcIp6[0], impl(self)->srcIp6[1], impl(self)->srcIp6[2], impl(self)->srcIp6[3], impl(self)->srcIp6[4], impl(self)->srcIp6[5], impl(self)->srcIp6[6], impl(self)->srcIp6[7],
+		impl(self)->srcIp6[8], impl(self)->srcIp6[9], impl(self)->srcIp6[10], impl(self)->srcIp6[11], impl(self)->srcIp6[12], impl(self)->srcIp6[13], impl(self)->srcIp6[14], impl(self)->srcIp6[15],
+		impl(self)->dstIp6[0], impl(self)->dstIp6[1], impl(self)->dstIp6[2], impl(self)->dstIp6[3], impl(self)->dstIp6[4], impl(self)->dstIp6[5], impl(self)->dstIp6[6], impl(self)->dstIp6[7],
+		impl(self)->dstIp6[8], impl(self)->dstIp6[9], impl(self)->dstIp6[10], impl(self)->dstIp6[11], impl(self)->dstIp6[12], impl(self)->dstIp6[13], impl(self)->dstIp6[14], impl(self)->dstIp6[15],
+		impl(self)->device,
+		impl(self)->protocol,
+		impl(self)->srcPort,
+		impl(self)->dstPort);
+}
+
+char *getDescription(struct FilterOptions *self) {
+	char *result = NULL;
+	int length;
+	int expected_length = snprintf_wrap(NULL, 0, self);
+	
+	if (expected_length < 0) return NULL;
+	
+	result = (char *)malloc((sizeof(char) * expected_length) + 1);
+	
+	if (result == NULL) 
+		return NULL;
+	
+	length = snprintf_wrap(result, expected_length + 1, self);
+	
+	if (length < 0 || length > expected_length + 1) {
+		printf("FAIL FAIL FAIL");
+		free(result);
+		return NULL;
+	}
+	
+	return result;
+}
 
 FilterOptions *FilterOptions_Create() {
 	
@@ -225,6 +287,8 @@ FilterOptions *FilterOptions_Create() {
 	filterOptions->isDstPortSet = isDstPortSet;
 	filterOptions->setDstPort = setDstPort;
 	filterOptions->getDstPort = getDstPort;
+	
+	filterOptions->description = getDescription;
 	
 	return filterOptions;
 }
