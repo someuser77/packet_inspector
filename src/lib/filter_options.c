@@ -237,6 +237,12 @@ char *getDescription(struct FilterOptions *self) {
 	return result;
 }
 
+size_t serialize(struct FilterOptions *self, unsigned char *buffer, size_t size) {
+	if (size >= sizeof(FilterOptionsImpl) && buffer != NULL) 
+		memcpy(buffer, impl(self), sizeof(FilterOptionsImpl));
+	return sizeof(FilterOptionsImpl);
+}
+
 FilterOptions *FilterOptions_Create() {
 	
 	FilterOptions *filterOptions = (FilterOptions *)calloc(1, sizeof(FilterOptions));
@@ -289,8 +295,23 @@ FilterOptions *FilterOptions_Create() {
 	filterOptions->getDstPort = getDstPort;
 	
 	filterOptions->description = getDescription;
-	
+
+	filterOptions->serialize = serialize;
+
 	return filterOptions;
+}
+
+FilterOptions *FilterOptions_Deserialize(const unsigned char *buffer, size_t size) {
+	FilterOptions *filter;
+	if (size < sizeof(FilterOptionsImpl)) {
+		return NULL;
+	}
+
+	filter = FilterOptions_Create();
+	
+	memcpy(impl(filter), buffer, sizeof(FilterOptionsImpl));
+	
+	return filter;
 }
 
 void FilterOptions_Destroy(FilterOptions **filterOptions) {

@@ -78,9 +78,12 @@ typedef struct FilterOptions {
 	
 	char* (*description)(struct FilterOptions *self);
 	
+	size_t (*serialize)(struct FilterOptions *self, unsigned char *buffer, size_t size);
+	
 } FilterOptions;
 
 FilterOptions *FilterOptions_Create();
+FilterOptions *FilterOptions_Deserialize(const unsigned char *buffer, size_t size);
 void FilterOptions_Destroy(FilterOptions **);
 
 #endif
