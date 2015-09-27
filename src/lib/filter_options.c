@@ -17,6 +17,8 @@
 // impl(self)->property could be rewritten as a macro property(self)
 
 // the FilterOptionsImpl could be encoded more efficiently but lets keep it simple.
+// this struct is unaligned on purpose because we will hold a pointer to the struct and
+// for now we don't want to work with unaligned pointer access.
 typedef struct {
 	unsigned short map;
 	unsigned char srcMac[ETH_ALEN];
