@@ -24,16 +24,41 @@ static struct netlink_kernel_cfg netlink_cfg = {
    .groups  = 1,
    .input = nl_recv_msg,
 };
-
+// http://linux-development-for-fresher.blogspot.co.il/2012/05/understanding-netlink-socket.html
+// http://binwaheed.blogspot.co.il/2010/08/after-reading-kernel-source-i-finally.html
 static void nl_recv_msg(struct sk_buff *skb) {
 	struct nlmsghdr *nlh;
-	klog_info("got a message");
+	struct sk_buff *skb_out;
+	char *response = "ok";
+	size_t responseLength = strlen(response) + 1;
+	int sendResult;
+	
 	nlh = (struct nlmsghdr *)skb->data;
 	pid = nlh->nlmsg_pid;
+	klog_info("got a message from PID %d.\nMessage Length: %d\nData Length: %d\n", pid, nlh->nlmsg_len, nlh->nlmsg_len - NLMSG_HDRLEN);
 	
-	enabled = 1;
+	skb_out = nlmsg_new(responseLength, 0);
+	if (skb_out == NULL) {
+		klog_error("Failed to allocate new skb");
+        return;
+	}
 	
-	klog_info("Sending is now enabled!");
+	nlh = nlmsg_put(skb_out, 0, 0, NLMSG_DONE, responseLength, 0);
+	
+	//NETLINK_CB(skb_out).dst_group = 0;
+	memcpy(nlmsg_data(nlh), response, responseLength);
+	
+	sendResult = nlmsg_unicast(nl_sk, skb_out, pid);
+	
+	if (sendResult < 0) {
+		klog_error("Error sending message to client. Error: %d", sendResult);
+	}
+	
+	//nlmsg_free(skb_out); // nlmsg_unicast frees skb_out on error. No need to free.
+	
+	//enabled = 1;
+	
+	//klog_info("Sending is now enabled!");
 }
 
 int packet_interceptor(struct sk_buff *skb,
