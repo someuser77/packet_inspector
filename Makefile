@@ -28,6 +28,8 @@ test: $(TESTS)
 	# $(CC) $(CFLAGS) $(TEST_SRC) -o $(TESTS)
 	sh ./tests/runtests.sh
 
+tests: $(TESTS)
+
 $(TESTS):
 	$(CC) $(CFLAGS) $(OBJECTS) $@.c -o $@
 	
