@@ -2,10 +2,13 @@
 #define _FILTER_OPTIONS_H_
 
 #include <stdbool.h>
+#ifndef __KERNEL__
 #include <stdlib.h>
 #include <sys/socket.h> // required for sockaddr definitions in other include files
-#include <linux/if_ether.h>
 #include <stdint.h>
+#endif
+#include <linux/if_ether.h>
+
 #include <linux/if.h>
 
 #ifndef IP6_ALEN
@@ -76,7 +79,7 @@ typedef struct FilterOptions {
 	
 } FilterOptions;
 
-FilterOptions *FilterOptions_Create();
+FilterOptions *FilterOptions_Create(void);
 FilterOptions *FilterOptions_Deserialize(const unsigned char *buffer, size_t size);
 void FilterOptions_Destroy(FilterOptions **);
 

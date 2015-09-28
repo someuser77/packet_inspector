@@ -1,14 +1,14 @@
-#include <string.h>
 #include <stdarg.h>
 
 // for scnprintf
 #ifdef __KERNEL__
 #include <linux/kernel.h>
 #else
+#include <string.h>
 #include <stdio.h>
 #endif
 
-
+#include "alloc.h"
 #include "filter_options.h"
 
 #define set_bit(target, bit) ((target) |= 1<< (bit))
@@ -149,8 +149,9 @@ int setDevice(struct FilterOptions *self, const char const *device, int len) {
 }
 
 int getDevice(struct FilterOptions *self, char *device) {
+	int len;
 	if (!isDeviceSet(self)) return -1;
-	int len = strlen(impl(self)->device);
+	len = strlen(impl(self)->device);
 	memcpy(device, impl(self)->device, len);
 	device[len] = '\0';
 	return len;
@@ -223,7 +224,7 @@ char *getDescription(struct FilterOptions *self) {
 	
 	if (expected_length < 0) return NULL;
 	
-	result = (char *)malloc((sizeof(char) * expected_length) + 1);
+	result = (char *)alloc((sizeof(char) * expected_length) + 1);
 	
 	if (result == NULL) 
 		return NULL;
@@ -231,8 +232,7 @@ char *getDescription(struct FilterOptions *self) {
 	length = snprintf_wrap(result, expected_length + 1, self);
 	
 	if (length < 0 || length > expected_length + 1) {
-		printf("FAIL FAIL FAIL");
-		free(result);
+		release(result);
 		return NULL;
 	}
 	
@@ -247,14 +247,20 @@ size_t serialize(struct FilterOptions *self, unsigned char *buffer, size_t size)
 
 FilterOptions *FilterOptions_Create() {
 	
-	FilterOptions *filterOptions = (FilterOptions *)calloc(1, sizeof(FilterOptions));
+	FilterOptions *filterOptions = (FilterOptions *)alloc(sizeof(FilterOptions));
 	if (filterOptions == NULL) {
 		return NULL;
 	}
-	filterOptions->FilterOptionsImpl = (FilterOptionsImpl *)calloc(1, sizeof(FilterOptionsImpl));
+	
+	memset(filterOptions, 0, sizeof(FilterOptions));
+	
+	filterOptions->FilterOptionsImpl = (FilterOptionsImpl *)alloc(sizeof(FilterOptionsImpl));
 	if (filterOptions->FilterOptionsImpl == NULL) {
 		return NULL;
-	}	
+	}
+	
+	memset(filterOptions->FilterOptionsImpl, 0, sizeof(FilterOptionsImpl));
+	
 	
 	filterOptions->isSrcMacSet = isSrcMacSet;
 	filterOptions->setSrcMac = setSrcMac;
@@ -317,7 +323,7 @@ FilterOptions *FilterOptions_Deserialize(const unsigned char *buffer, size_t siz
 }
 
 void FilterOptions_Destroy(FilterOptions **filterOptions) {
-	free((*filterOptions)->FilterOptionsImpl);
-	free(*filterOptions);
+	release((*filterOptions)->FilterOptionsImpl);
+	release(*filterOptions);
 	*filterOptions = NULL;
 }

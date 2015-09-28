@@ -1,4 +1,4 @@
-#include <linux/init.h> 
+#include <linux/init.h>
 #include <linux/module.h>
 #include <linux/kernel.h>
 #include <linux/netdevice.h>
@@ -9,6 +9,10 @@
 #define MODULE_NAME "udp_device_filter"
 
 #include "utils.h"
+
+#include "filter_options.h"
+
+
 // http://stackoverflow.com/questions/27755246/netlink-socket-creation-returns-null
 MODULE_LICENSE("GPL");
 
@@ -19,11 +23,15 @@ static int pid = -1;
 static int device_was_added = 0;
 static int socket_was_created = 0;
 
+static FilterOptions *filter_options;
+
 static void nl_recv_msg(struct sk_buff *skb);
 static struct netlink_kernel_cfg netlink_cfg = {
    .groups  = 1,
    .input = nl_recv_msg,
 };
+
+
 // http://linux-development-for-fresher.blogspot.co.il/2012/05/understanding-netlink-socket.html
 // http://binwaheed.blogspot.co.il/2010/08/after-reading-kernel-source-i-finally.html
 static void nl_recv_msg(struct sk_buff *skb) {
@@ -36,6 +44,11 @@ static void nl_recv_msg(struct sk_buff *skb) {
 	nlh = (struct nlmsghdr *)skb->data;
 	pid = nlh->nlmsg_pid;
 	klog_info("got a message from PID %d.\nMessage Length: %d\nData Length: %d\n", pid, nlh->nlmsg_len, nlh->nlmsg_len - NLMSG_HDRLEN);
+	
+	
+	filter_options = FilterOptions_Deserialize(NLMSG_DATA(nlh), NLMSG_PAYLOAD(nlh,0));
+	
+	klog_info("FilterOptions were: %s", filter_options->description(filter_options));
 	
 	skb_out = nlmsg_new(responseLength, 0);
 	if (skb_out == NULL) {
