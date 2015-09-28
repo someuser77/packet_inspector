@@ -1,3 +1,4 @@
 * use generic netlink sockets instead of hard coded magic numbers (NETLINK_USER = 31)
 * add circular buffer to kernel module
 * publish statistics using /proc virtual file system
+* make the kernel module open a tcp socket and send traffic to another host
