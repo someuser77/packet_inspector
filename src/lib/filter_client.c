@@ -97,7 +97,6 @@ bool initialize(struct FilterClient *self, struct FilterOptions *filterOptions) 
 	const int MAX_RESPONSE_SIZE = 128;
 	char *responseBuffer;
 	ssize_t response_length;
-	unsigned char *data;
 	
 	if (!buildSocket(self))
 		return false;
