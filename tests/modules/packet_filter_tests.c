@@ -156,8 +156,15 @@ char *test_PacketFilter_FilterUdpSrcPort() {
 
 char *test_PacketFilter_FilterUdpDstPort() {
 	uint16_t port = 46289;
-	UdpPacketFilter	*filter = PacketFilter_createUdpDstPortFilter(port);
+	UdpPacketFilter *filter = PacketFilter_createUdpDstPortFilter(port);
 	mu_assert(filter->match(filter, udp_ip6_header(udp_ip6_packet)), "Destination port did not match UDP packet.");
+	return NULL;
+}
+
+char *test_PacketFilter_FilterDeviceName() {
+	char device[IFNAMSIZ] = "eth0";
+	DeviceFilter *filter = PacketFilter_createDeviceNameFilter(device);
+	mu_assert(filter->match(filter, "eth0"), "Device filter did not match name.");
 	return NULL;
 }
 
@@ -165,6 +172,7 @@ char *test_PacketFilter_FilterUdpDstPort() {
 
 char *all_tests() {
 	mu_suite_start();
+	mu_run_test(test_PacketFilter_FilterDeviceName);
 	mu_run_test(test_PacketFilter_FilterSrcMac);
 	mu_run_test(test_PacketFilter_FilterDstMac);
 	mu_run_test(test_PacketFilter_FilterIpProtocol);
