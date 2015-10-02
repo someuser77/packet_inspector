@@ -10,7 +10,9 @@
 
 #include "packet_filter.h"
 
+#ifndef __KERNEL__
 static int min(int a, int b) {return a < b ? a : b; }
+#endif
 
 static bool filterDeviceName(const char const device[IFNAMSIZ], void *param) {
 	char paramDevice[IFNAMSIZ] = {0};

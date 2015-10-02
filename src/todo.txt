@@ -2,3 +2,4 @@
 * add circular buffer to kernel module
 * publish statistics using /proc virtual file system
 * make the kernel module open a tcp socket and send traffic to another host
+* guard yourself from multiple clients
