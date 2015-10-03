@@ -54,7 +54,7 @@ inline FilterOptionsImpl* impl(FilterOptions *self) {
 #define PROTOCOL_SET_BIT 	8
 #define SRC_PORT_SET_BIT 		9
 #define DST_PORT_SET_BIT 		10
-
+#define SHUTDOWN					15
 
 define_isSetFunction(isSrcMacSet, SRC_MAC_SET_BIT);
 define_isSetFunction(isDstMacSet, DST_MAC_SET_BIT);
@@ -66,6 +66,11 @@ define_isSetFunction(isDeviceSet, DEVICE_SET_BIT);
 define_isSetFunction(isProtocolSet, PROTOCOL_SET_BIT);
 define_isSetFunction(isSrcPortSet, SRC_PORT_SET_BIT);
 define_isSetFunction(isDstPortSet, DST_PORT_SET_BIT);
+define_isSetFunction(isShutdownSet, SHUTDOWN);
+
+static bool isEmpty(FilterOptions *self) {
+	return impl(self)->map == 0;
+}
 
 static void set(FilterOptions *self, int bit) {
 	set_bit(impl(self)->map, bit);
@@ -187,6 +192,10 @@ uint16_t getDstPort(struct FilterOptions *self) {
 	return impl(self)->dstPort;
 }
 
+void setShutdown(struct FilterOptions *self) {
+	set(self, SHUTDOWN);
+}
+
 static int snprintf_wrap(char *buf, size_t size, struct FilterOptions *self) {
 	const char *format = "FilterOptions:\n"
 							"\tsrcMac: %d dstMac: %d srcIp: %d dstIp: %d srcIp6: %d dstIp: %d device: %d protocol: %d srcPort: %d dstPort: %d\n"
@@ -305,6 +314,11 @@ FilterOptions *FilterOptions_Create() {
 	filterOptions->description = getDescription;
 
 	filterOptions->serialize = serialize;
+	
+	filterOptions->isShutdownSet = isShutdownSet;
+	filterOptions->setShutdown = setShutdown;
+	
+	filterOptions->isEmpty = isEmpty;
 
 	return filterOptions;
 }

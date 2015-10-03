@@ -278,6 +278,18 @@ char *test_FilterOptions_Serialization() {
 	return NULL;
 }
 
+char *test_FilterOptions_SetGetShutdown() {	
+	mu_assert(!filterOptions->isShutdownSet(filterOptions), "Shutdown was on but wasn't set.");
+	filterOptions->setShutdown(filterOptions);
+	mu_assert(filterOptions->isShutdownSet(filterOptions), "Shutdown was not set correctly.");
+	return NULL;
+}
+
+char *test_FilterOptions_TestEmpty() {
+	mu_assert(filterOptions->isEmpty(filterOptions), "FilterOptions was not empty.");
+	return NULL;
+}
+
 void init() {
 	filterOptions = FilterOptions_Create();
 }
@@ -302,6 +314,8 @@ char *all_tests() {
 	mu_run_test(test_FilterOptions_SetGetDstPort);
 	mu_run_test(test_FilterOptions_GetDescription);
 	mu_run_test(test_FilterOptions_Serialization);
+	mu_run_test(test_FilterOptions_SetGetShutdown);
+	mu_run_test(test_FilterOptions_TestEmpty);
 	return NULL;
 }
 

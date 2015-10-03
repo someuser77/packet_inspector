@@ -33,6 +33,9 @@ typedef enum {
 typedef struct FilterOptions {
 	void *FilterOptionsImpl;
 	
+	bool (*isShutdownSet)(struct FilterOptions *self);
+	void (*setShutdown)(struct FilterOptions *self);
+	
 	bool (*isSrcMacSet)(struct FilterOptions *self);
 	bool (*setSrcMac)(struct FilterOptions *self, const unsigned char const mac[ETH_ALEN]);
 	int (*getSrcMac)(struct FilterOptions *self, unsigned char mac[ETH_ALEN]);
@@ -72,6 +75,8 @@ typedef struct FilterOptions {
 	bool (*isDstPortSet)(struct FilterOptions *self);
 	bool (*setDstPort)(struct FilterOptions *self, uint16_t port);
 	uint16_t (*getDstPort)(struct FilterOptions *self);
+
+	bool (*isEmpty)(struct FilterOptions *self);
 	
 	char* (*description)(struct FilterOptions *self);
 	
