@@ -164,6 +164,9 @@ bool matchAll(struct FilterExecuter *self, struct sk_buff *skb) {
 				klog_error("Protocol was TCP but header was null.");
 				return false;
 			}
+			//klog_info("Iterating %s empty TCP Filters...", list_empty(tcpFilters(self)) ? "" : "non");
+			//klog_info("Got TCP packet with SRC port of %d", ntohs(tcp->source));
+			//klog_info("Got TCP packet with DST port of %d", ntohs(tcp->dest));
 			ITERATE_FILTERS(tcpFilter, tcpFilters(self), filters, tcp);
 			break;
 		case IPPROTO_UDP:
@@ -217,10 +220,20 @@ FilterExecuter *FilterExecuter_Create(FilterOptions *filterOptions) {
 	}
 	
 	if (filterOptions->isSrcIpSet(filterOptions)) {
+		uint32_t ip;
+		IpFilterList *ipFilter = (IpFilterList *)vmalloc(sizeof(IpFilterList));
+		ip = filterOptions->getSrcIp(filterOptions);
+		ipFilter->filter = PacketFilter_createIpSrcIpFilter(ip);
+		list_add(&ipFIlter->filters, &impl->ip);
 		impl->totalFilters++;
 	}
 	
 	if (filterOptions->isDstIpSet(filterOptions)) {
+		uint32_t ip;
+		IpFilterList *ipFilter = (IpFilterList *)vmalloc(sizeof(IpFilterList));
+		ip = filterOptions->getDstIp(filterOptions);
+		ipFilter->filter = PacketFilter_createIpDstIpFilter(ip);
+		list_add(&ipFilter->filters, &impl->ip);
 		impl->totalFilters++;
 	}
 	
@@ -241,10 +254,20 @@ FilterExecuter *FilterExecuter_Create(FilterOptions *filterOptions) {
 	}
 	
 	if (filterOptions->isSrcPortSet(filterOptions)) {
+		uint16_t port;
+		TcpFilterList *tcpFilter = (TcpFilterList *)vmalloc(sizeof(TcpFilterList));
+		port = filterOptions->getSrcPort(filterOptions);
+		tcpFilter->filter = PacketFilter_createTcpSrcPortFilter(port);
+		list_add(&tcpFilter->filters, &impl->tcp);
 		impl->totalFilters++;
 	}
 	
 	if (filterOptions->isDstPortSet(filterOptions)) {
+		uint16_t port;
+		TcpFilterList *tcpFilter = (TcpFilterList *)vmalloc(sizeof(TcpFilterList));
+		port = filterOptions->getDstPort(filterOptions);
+		tcpFilter->filter = PacketFilter_createTcpDstPortFilter(port);
+		list_add(&tcpFilter->filters, &impl->tcp);
 		impl->totalFilters++;
 	}
 	
