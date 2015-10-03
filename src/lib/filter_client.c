@@ -9,6 +9,8 @@ static const int NETLINK_USER = 31;
 
 typedef struct FilterClientImpl {
 	int socket_fd;
+	struct sockaddr_nl destAddr;
+	struct iovec iov;
 } FilterClientImpl;
 
 static inline FilterClientImpl *impl(FilterClient *fc) {
@@ -36,14 +38,15 @@ static bool bindToSourceAddress(struct FilterClient *self) {
     src_addr.nl_family = AF_NETLINK;
     src_addr.nl_pid = getpid();
 
-    if (bind(impl(self)->socket_fd, (struct sockaddr *)&src_addr, sizeof(src_addr)) < 0) {
+    if (bind(getSocket(self), (struct sockaddr *)&src_addr, sizeof(src_addr)) < 0) {
 		perror("bind()");
 		return false;
 	}
 	return true;
 }
 
-static void fillDestinationAddress(struct sockaddr_nl *destinationAddress) {
+static void fillDestinationAddress(struct FilterClient *self) {
+	struct sockaddr_nl *destinationAddress = &impl(self)->destAddr;
 	memset(destinationAddress, 0, sizeof(struct sockaddr_nl));
     destinationAddress->nl_family = AF_NETLINK;
     destinationAddress->nl_pid = 0; /* For Linux Kernel */
@@ -75,13 +78,16 @@ static bool setData(struct nlmsghdr *netlinkMessageHeader, struct FilterOptions 
 	return true;
 }
 
-static void fillIovc(struct iovec *iov, struct nlmsghdr *nlh) {
+static void fillIovc(struct FilterClient *self, struct nlmsghdr *nlh) {
+	struct iovec *iov = &impl(self)->iov;
 	memset(iov, 0, sizeof(struct iovec));
     iov->iov_base = (void *)nlh;
     iov->iov_len = nlh->nlmsg_len;
 }
 
-static void fillMsgHdr(struct msghdr *msg, struct iovec *iov, struct sockaddr_nl *destinationAddress) {
+static void fillMsgHdr(struct FilterClient *self, struct msghdr *msg) {
+	struct iovec *iov = &impl(self)->iov;
+	struct sockaddr_nl *destinationAddress = &impl(self)->destAddr;
 	memset(msg, 0, sizeof(struct msghdr));
     msg->msg_name = (void *)destinationAddress;
     msg->msg_namelen = sizeof(struct sockaddr_nl);
@@ -90,13 +96,11 @@ static void fillMsgHdr(struct msghdr *msg, struct iovec *iov, struct sockaddr_nl
 }
 
 bool initialize(struct FilterClient *self, struct FilterOptions *filterOptions) {
-	struct sockaddr_nl destinationAddress;
 	struct nlmsghdr *netlinkMessageHeader;
-	struct iovec iov;
-	struct msghdr msgh;
 	const int MAX_RESPONSE_SIZE = 128;
 	char *responseBuffer;
 	ssize_t response_length;
+	struct msghdr msg;
 	
 	if (!buildSocket(self))
 		return false;
@@ -104,17 +108,17 @@ bool initialize(struct FilterClient *self, struct FilterOptions *filterOptions) 
 	if (!bindToSourceAddress(self))
 		return false;
 	
-	fillDestinationAddress(&destinationAddress);
+	fillDestinationAddress(self);
 	
 	netlinkMessageHeader = createNetlinkMessageHeader(getPayloadSize(filterOptions));
 	
 	setData(netlinkMessageHeader, filterOptions);
 	
-	fillIovc(&iov, netlinkMessageHeader);
+	fillIovc(self, netlinkMessageHeader);
 	
-	fillMsgHdr(&msgh, &iov, &destinationAddress);
-	
-	if (sendmsg(impl(self)->socket_fd, &msgh, 0) < 0) {
+	fillMsgHdr(self, &msg);
+	printf("Sending Options...\n");
+	if (sendmsg(getSocket(self), &msg, 0) < 0) {
         perror("sendmsg()");
 		free(netlinkMessageHeader);
 		return false;
@@ -124,9 +128,9 @@ bool initialize(struct FilterClient *self, struct FilterOptions *filterOptions) 
 	
 	netlinkMessageHeader = createNetlinkMessageHeader(MAX_RESPONSE_SIZE);
 	
-	fillIovc(&iov, netlinkMessageHeader);
-	
-    if ((response_length = recvmsg(getSocket(self), &msgh, 0)) < 0) {
+	fillIovc(self, netlinkMessageHeader);
+	printf("Waiting for response...\n");
+    if ((response_length = recvmsg(getSocket(self), &msg, 0)) < 0) {
 		perror("recvmsg()");
 		free(netlinkMessageHeader);
 		return false;
@@ -135,15 +139,42 @@ bool initialize(struct FilterClient *self, struct FilterOptions *filterOptions) 
 	responseBuffer = (char *)malloc(MAX_RESPONSE_SIZE);
 	memcpy(responseBuffer, NLMSG_DATA(netlinkMessageHeader), MAX_RESPONSE_SIZE);
 	
-	printf("Response: %s", responseBuffer);
+	printf("Response: %s\n", responseBuffer);
 	
 	free(netlinkMessageHeader);
 	free(responseBuffer);
 	return true;
 }
 
-unsigned char *receive(struct FilterClient *self) {
-	return NULL;
+unsigned char *receive(struct FilterClient *self, size_t *size) {
+	const size_t MAX_PAYLOAD = ETH_FRAME_LEN;
+	struct nlmsghdr *netlinkMessageHeader;
+	struct msghdr msg;
+	unsigned char *buffer;
+	ssize_t length;
+	memset(&msg, 0, sizeof(struct msghdr));
+	
+	netlinkMessageHeader = createNetlinkMessageHeader(MAX_PAYLOAD);
+	
+	fillIovc(self, netlinkMessageHeader);
+	
+	memset(netlinkMessageHeader, 0, NLMSG_SPACE(MAX_PAYLOAD));
+	
+	fillMsgHdr(self, &msg);
+	
+	recvmsg(getSocket(self), &msg, 0);
+	
+	length = netlinkMessageHeader->nlmsg_len - NLMSG_HDRLEN;
+	
+	buffer = (unsigned char *)malloc(length);
+	
+	memcpy(buffer, NLMSG_DATA(netlinkMessageHeader), length);
+	
+	free(netlinkMessageHeader);
+	
+	*size = length;
+	
+	return buffer;
 }
 
 void destroy(struct FilterClient *self) {

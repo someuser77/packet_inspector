@@ -3,7 +3,11 @@
 #include <netinet/in.h>
 #include "lib/filter_client.h"
 
+#define MAX_PAYLOAD ETH_FRAME_LEN	
+
 int main(int __attribute__((unused)) argc, char __attribute__((unused)) *argv[]) {
+	unsigned char *buffer;
+	size_t size;
 	FilterClient *filterClient;
 	FilterOptions *filterOptions;
 	
@@ -40,6 +44,15 @@ int main(int __attribute__((unused)) argc, char __attribute__((unused)) *argv[])
 	
 	filterClient = FilterClient_Create();
 	filterClient->initialize(filterClient, filterOptions);
+	
+	while (1) {
+		printf("Waiting for data... ");
+		buffer = filterClient->receive(filterClient, &size);
+		printf("Got %zu bytes.\n", size);
+		
+		free(buffer);
+	}
+	
 	filterClient->destroy(filterClient);
 	free(filterClient);
 	

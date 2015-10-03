@@ -7,7 +7,7 @@ typedef struct FilterClient {
 	void *impl;
 	
 	bool (*initialize)(struct FilterClient *self, FilterOptions *filter);
-	unsigned char * (*receive)(struct FilterClient *self);
+	unsigned char * (*receive)(struct FilterClient *self, size_t *size);
 	void (*destroy)(struct FilterClient *self);
 } FilterClient;
 

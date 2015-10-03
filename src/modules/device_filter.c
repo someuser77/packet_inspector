@@ -18,6 +18,8 @@
 // http://stackoverflow.com/questions/27755246/netlink-socket-creation-returns-null
 MODULE_LICENSE("GPL");
 
+static const int NETLINK_USER = 31;
+
 static struct packet_type pt;
 static struct sock *nl_sk = NULL;
 static bool enabled = false;
@@ -33,8 +35,7 @@ static struct netlink_kernel_cfg netlink_cfg = {
    .input = nl_recv_msg,
 };
 
-static int sendResponseToClient(int pid, char *response){
-	size_t length = strlen(response);
+static int sendResponseToClient(int pid, void *buffer, size_t length) {
 	struct nlmsghdr *nlh;
 	struct sk_buff *skb_out = nlmsg_new(length, 0);
 	
@@ -44,15 +45,19 @@ static int sendResponseToClient(int pid, char *response){
 	}
 	
 	nlh = nlmsg_put(skb_out, 0, 0, NLMSG_DONE, length, 0);
-	
-	memcpy(nlmsg_data(nlh), response, length);
-	
+	NETLINK_CB(skb_out).dst_group = 0;
+	memcpy(nlmsg_data(nlh), buffer, length);
+	klog_info("Sending %zu bytes of response to client...", length);
 	return nlmsg_unicast(nl_sk, skb_out, pid);	
+}
+
+static int sendTextResponseToClient(int pid, char *response){
+	return sendResponseToClient(pid, response, strlen(response));
 }
 
 static void DuplicateInitialization(int pid) {
 	klog_info("Got initialization message but already initialized.");
-	sendResponseToClient(pid, "Already Initialized");
+	sendTextResponseToClient(pid, "Already Initialized");
 }
 
 // http://linux-development-for-fresher.blogspot.co.il/2012/05/understanding-netlink-socket.html
@@ -89,12 +94,13 @@ static void nl_recv_msg(struct sk_buff *skb) {
 	
 	executer = FilterExecuter_Create(filterOptions);
 	
-	sendResult = sendResponseToClient(pid, "ok");
+	sendResult = sendTextResponseToClient(pid, "ok");
 	
 	if (sendResult < 0) {
 		klog_error("Error sending message to client. Error: %d", sendResult);
 	}
 	
+	// http://stackoverflow.com/questions/10138848/kernel-crash-when-trying-to-free-the-skb-with-nlmsg-freeskb-out
 	//nlmsg_free(skb_out); // nlmsg_unicast frees skb_out on error. No need to free.
 	
 	klog_info("Sending is now enabled!");
@@ -105,11 +111,11 @@ static void nl_recv_msg(struct sk_buff *skb) {
 }
 
 int packet_interceptor(struct sk_buff *skb,  struct net_device *dev,  struct packet_type *pt, struct net_device *orig_dev) {	
-	struct sk_buff *skb_out;
-	int length;
-	char *buffer;
+	//struct sk_buff *skb_out;
+	size_t length;
+	unsigned char *buffer;
 	int res;
-	struct nlmsghdr *nlh;
+	//struct nlmsghdr *nlh;
 	struct net_device *device;
 	
 	if (!enabled) {
@@ -158,18 +164,20 @@ int packet_interceptor(struct sk_buff *skb,  struct net_device *dev,  struct pac
 	
 	length = skb->len;
 	
-	klog_info("Got a packet. Length: %d", length);
-	return 0;
-	if ((buffer = vmalloc(length)) == NULL) {
-		klog_error("Unable to allocate space for user-space tarnsfer of %d bytes.", length);
+	klog_info("Got a %s packet. Length: %zu.", skb_is_nonlinear(skb) ? "nonlinear" : "linear" ,length);
+	klog_info("in_irq? %lu in_softirq? %lu in_interrupt? %lu in_serving_softirq? %lu", in_irq(), in_softirq(), in_interrupt(), in_serving_softirq());
+	
+	if ((buffer = kmalloc(length, GFP_ATOMIC)) == NULL) {
+		klog_error("Unable to allocate space for user-space tarnsfer of %zu bytes.", length);
 		return 0;
 	}
+	
 	if (skb_copy_bits(skb, 0, buffer, length) != 0) {
 		klog_error("Error copying skb data into buffer.");
 		goto cleanup;
 	}
-	
-	skb_out = nlmsg_new(length, GFP_KERNEL);
+	/*
+	skb_out = nlmsg_new(length, 0);
 	if (skb_out == NULL) {
 		klog_error("nlmsg_new() failed");
 		goto cleanup;
@@ -179,13 +187,16 @@ int packet_interceptor(struct sk_buff *skb,  struct net_device *dev,  struct pac
 	NETLINK_CB(skb_out).dst_group = 0;
 	memcpy(NLMSG_DATA(nlh), buffer, length);
 	res = nlmsg_unicast(nl_sk, skb_out, pid);
+	*/
+	
+	res = sendResponseToClient(pid, buffer, length);
 	
     if (res < 0) {
         klog_info("Error while sending data to user");
 	}
 	
 cleanup:
-	vfree(buffer);
+	kfree(buffer);
 	return 0;
 }
 
@@ -195,7 +206,7 @@ static int __init init_udp_device_filter_module(void) {
 	pt.dev = NULL;
 	pt.func = packet_interceptor;
 	
-	nl_sk = netlink_kernel_create(&init_net, 31, &netlink_cfg);
+	nl_sk = netlink_kernel_create(&init_net, NETLINK_USER, &netlink_cfg);
 
     // nl_sk = netlink_kernel_create(&init_net, NETLINK_USER, 0, hello_nl_recv_msg,
     //                              NULL, THIS_MODULE);
