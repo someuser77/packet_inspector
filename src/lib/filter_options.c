@@ -198,7 +198,7 @@ void setShutdown(struct FilterOptions *self) {
 
 static int snprintf_wrap(char *buf, size_t size, struct FilterOptions *self) {
 	const char *format = "FilterOptions:\n"
-							"\tsrcMac: %d dstMac: %d srcIp: %d dstIp: %d srcIp6: %d dstIp: %d device: %d protocol: %d srcPort: %d dstPort: %d\n"
+							"\tSHUTDOWN: %d srcMac: %d dstMac: %d srcIp: %d dstIp: %d srcIp6: %d dstIp: %d device: %d protocol: %d srcPort: %d dstPort: %d\n"
 							"\tsrcMac: %02x:%02x:%02x:%02x:%02x:%02x\n"
 							"\tdstMac: %02x:%02x:%02x:%02x:%02x:%02x\n"
 							"\tsrcIp: %d.%d.%d.%d\n"
@@ -211,7 +211,7 @@ static int snprintf_wrap(char *buf, size_t size, struct FilterOptions *self) {
 							"\tdstPort: %hu\n";	
 	
 	return snprintf(buf, size, format, 
-		isSrcMacSet(self), isDstMacSet(self), isSrcIpSet(self), isDstIpSet(self), isSrcIp6Set(self), isDstIp6Set(self), isDeviceSet(self), isProtocolSet(self), isSrcPortSet(self), isDstPortSet(self),
+		isShutdownSet(self), isSrcMacSet(self), isDstMacSet(self), isSrcIpSet(self), isDstIpSet(self), isSrcIp6Set(self), isDstIp6Set(self), isDeviceSet(self), isProtocolSet(self), isSrcPortSet(self), isDstPortSet(self),
 		impl(self)->srcMac[0], impl(self)->srcMac[1], impl(self)->srcMac[2], impl(self)->srcMac[3], impl(self)->srcMac[4], impl(self)->srcMac[5],
 		impl(self)->dstMac[0], impl(self)->dstMac[1], impl(self)->dstMac[2], impl(self)->dstMac[3], impl(self)->dstMac[4], impl(self)->dstMac[5],
 		impl(self)->srcIp & 0xff, (impl(self)->srcIp >> 8) & 0xff, (impl(self)->srcIp >> 16) & 0xff, (impl(self)->srcIp >> 24) & 0xff,

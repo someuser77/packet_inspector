@@ -184,7 +184,7 @@ char *test_FilterOptions_GetDescription() {
 	
 	
 	char *expected = "FilterOptions:\n"
-		"\tsrcMac: 1 dstMac: 1 srcIp: 1 dstIp: 1 srcIp6: 1 dstIp: 1 device: 1 protocol: 1 srcPort: 1 dstPort: 1\n"
+		"\tSHUTDOWN: 0 srcMac: 1 dstMac: 1 srcIp: 1 dstIp: 1 srcIp6: 1 dstIp: 1 device: 1 protocol: 1 srcPort: 1 dstPort: 1\n"
 		"\tsrcMac: 01:02:03:04:05:06\n"
 		"\tdstMac: 06:05:04:03:02:01\n"
 		"\tsrcIp: 192.0.2.33\n"
