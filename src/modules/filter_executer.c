@@ -224,7 +224,7 @@ FilterExecuter *FilterExecuter_Create(FilterOptions *filterOptions) {
 		IpFilterList *ipFilter = (IpFilterList *)vmalloc(sizeof(IpFilterList));
 		ip = filterOptions->getSrcIp(filterOptions);
 		ipFilter->filter = PacketFilter_createIpSrcIpFilter(ip);
-		list_add(&ipFIlter->filters, &impl->ip);
+		list_add(&ipFilter->filters, &impl->ip);
 		impl->totalFilters++;
 	}
 	
