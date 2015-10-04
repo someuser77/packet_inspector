@@ -47,17 +47,44 @@ static int sendResponseToClient(int pid, void *buffer, size_t length) {
 	nlh = nlmsg_put(skb_out, 0, 0, NLMSG_DONE, length, 0);
 	NETLINK_CB(skb_out).dst_group = 0;
 	memcpy(nlmsg_data(nlh), buffer, length);
-	klog_info("Sending %zu bytes of response to client...", length);
+	//klog_info("Sending %zu bytes of response to client...", length);
 	return nlmsg_unicast(nl_sk, skb_out, pid);	
 }
 
 static int sendTextResponseToClient(int pid, char *response){
-	return sendResponseToClient(pid, response, strlen(response));
+	int sendResult;
+	
+	klog_info("%s", message);
+	
+	sendResult = sendResponseToClient(pid, response, strlen(response));
+	
+	if (sendResult < 0) {
+		klog_error("Error sending message '%s' to client %d. Error: %d", message, pid, sendResult);
+	}
+	
+	return sendResult;
 }
 
-static void DuplicateInitialization(int pid) {
-	klog_info("Got initialization message but already initialized.");
-	sendTextResponseToClient(pid, "Already Initialized");
+static void initialize() {
+	executer = FilterExecuter_Create(filterOptions);
+	sendTextResponseToClient(pid, "ok");	
+	klog_info("Sending is now enabled!");	
+	enabled = true;
+}
+
+static void shutdown() {
+	enabled = false;
+	
+	executer->destroy(executer);
+	
+}
+
+static void uninitializedShutdown(int pid) {
+	sendTextResponseToClient(pid, "Got shutdown message but wasn't initialized.");
+}
+
+static void duplicateInitialization(int pid) {
+	sendTextResponseToClient(pid, "Got initialization message but already initialized.");
 }
 
 // http://linux-development-for-fresher.blogspot.co.il/2012/05/understanding-netlink-socket.html
@@ -66,46 +93,45 @@ static void nl_recv_msg(struct sk_buff *skb) {
 	FilterOptions *filterOptions;
 	struct nlmsghdr *nlh;
 	int messagePid;
-	
 	int sendResult;
+	char *message;
 	
 	nlh = (struct nlmsghdr *)skb->data;
 	messagePid	= nlh->nlmsg_pid;
 	klog_info("got a message from PID %d.\nMessage Length: %d\nData Length: %d\n", messagePid, nlh->nlmsg_len, nlh->nlmsg_len - NLMSG_HDRLEN);
 	
-	if (enabled) {
-		DuplicateInitialization(messagePid);
-		return;
-	}
-	
-	mutex_lock(&initializationLock);
-	
-	if (enabled) {
-		DuplicateInitialization(messagePid);
-		mutex_unlock(&initializationLock);
-		return;
-	}
-	
-	pid = messagePid;
-	
 	filterOptions = FilterOptions_Deserialize(NLMSG_DATA(nlh), NLMSG_PAYLOAD(nlh,0));
 	
 	klog_info("FilterOptions were: %s", filterOptions->description(filterOptions));
 	
-	executer = FilterExecuter_Create(filterOptions);
+	mutex_lock(&initializationLock);
 	
-	sendResult = sendTextResponseToClient(pid, "ok");
-	
-	if (sendResult < 0) {
-		klog_error("Error sending message to client. Error: %d", sendResult);
+	if (!enabled && filterOptions->isShutdownSet(filterOptions)) {
+		
+		uninitializedShutdown(messagePid);
+		goto cleanup;
 	}
+	
+	if (enabled && !filterOptions->isShutdownSet(filterOptions)) {
+		
+		duplicateInitialization(messagePid);
+		goto cleanup;
+	}
+	
+	pid = messagePid;
+	
+	if (!filterOptions->isShutdownSet(filterOptions)) {
+		initialize();
+	} else {
+		shutdown();
+	}
+	
+cleanup:
+	
+	release(filterOptions);
 	
 	// http://stackoverflow.com/questions/10138848/kernel-crash-when-trying-to-free-the-skb-with-nlmsg-freeskb-out
 	//nlmsg_free(skb_out); // nlmsg_unicast frees skb_out on error. No need to free.
-	
-	klog_info("Sending is now enabled!");
-	
-	enabled = true;
 	
 	mutex_unlock(&initializationLock);
 }
