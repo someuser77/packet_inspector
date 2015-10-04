@@ -3,6 +3,8 @@
 #include <netinet/in.h>
 #include "lib/filter_client.h"
 
+static volatile bool enabled = true;
+
 #define MAX_PAYLOAD ETH_FRAME_LEN
 
 void hex_dump(unsigned char *buffer, size_t size) {
@@ -42,8 +44,8 @@ int main(int __attribute__((unused)) argc, char __attribute__((unused)) *argv[])
 	unsigned char *buffer;
 	size_t size;
 	FilterClient *filterClient;
-	FilterOptions *filterOptions;
-	
+	FilterOptions *filterOptions;	
+	printf("PID: %d", getpid());
 	filterOptions = FilterOptions_Create();
 	
 	unsigned char srcMac[ETH_ALEN] = {0x6, 0x5, 0x4, 0x3, 0x2, 0x1};
@@ -76,18 +78,26 @@ int main(int __attribute__((unused)) argc, char __attribute__((unused)) *argv[])
 	printf("Initializing with %s", filterOptions->description(filterOptions));
 	
 	filterClient = FilterClient_Create();
-	filterClient->initialize(filterClient, filterOptions);
+	
+	if (!filterClient->initialize(filterClient, filterOptions)) {
+		printf("Error initializing. Did you remember to load the module?\n");
+		return EXIT_FAILURE;
+	}
 	
 	while (1) {
-		printf("Waiting for data... ");
+		printf("Waiting for data... \n");
+		fflush(stdout);
 		buffer = filterClient->receive(filterClient, &size);
+		if (buffer == NULL) {
+			break;
+		}
 		printf("Got %zu bytes.\n", size);
 		hex_dump(buffer, size);
 		free(buffer);
 	}
-	
+	printf("Destroy...");
 	filterClient->destroy(filterClient);
 	free(filterClient);
 	
-	return 0;
+	return EXIT_SUCCESS;
 }

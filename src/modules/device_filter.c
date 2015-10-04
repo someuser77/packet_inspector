@@ -54,29 +54,29 @@ static int sendResponseToClient(int pid, void *buffer, size_t length) {
 static int sendTextResponseToClient(int pid, char *response){
 	int sendResult;
 	
-	klog_info("%s", message);
+	klog_info("%s", response);
 	
 	sendResult = sendResponseToClient(pid, response, strlen(response));
 	
 	if (sendResult < 0) {
-		klog_error("Error sending message '%s' to client %d. Error: %d", message, pid, sendResult);
+		klog_error("Error sending message '%s' to client %d. Error: %d", response, pid, sendResult);
 	}
 	
 	return sendResult;
 }
 
-static void initialize() {
+static void initialize(struct FilterOptions *filterOptions) {
 	executer = FilterExecuter_Create(filterOptions);
 	sendTextResponseToClient(pid, "ok");	
 	klog_info("Sending is now enabled!");	
 	enabled = true;
 }
 
-static void shutdown() {
+static void shutdown(void) {
 	enabled = false;
-	
+	sendTextResponseToClient(pid, "shutdown");
+	klog_info("Shutting down!");
 	executer->destroy(executer);
-	
 }
 
 static void uninitializedShutdown(int pid) {
@@ -93,8 +93,6 @@ static void nl_recv_msg(struct sk_buff *skb) {
 	FilterOptions *filterOptions;
 	struct nlmsghdr *nlh;
 	int messagePid;
-	int sendResult;
-	char *message;
 	
 	nlh = (struct nlmsghdr *)skb->data;
 	messagePid	= nlh->nlmsg_pid;
@@ -121,14 +119,14 @@ static void nl_recv_msg(struct sk_buff *skb) {
 	pid = messagePid;
 	
 	if (!filterOptions->isShutdownSet(filterOptions)) {
-		initialize();
+		initialize(filterOptions);
 	} else {
 		shutdown();
 	}
 	
 cleanup:
 	
-	release(filterOptions);
+	vfree(filterOptions);
 	
 	// http://stackoverflow.com/questions/10138848/kernel-crash-when-trying-to-free-the-skb-with-nlmsg-freeskb-out
 	//nlmsg_free(skb_out); // nlmsg_unicast frees skb_out on error. No need to free.

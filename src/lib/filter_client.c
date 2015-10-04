@@ -3,32 +3,102 @@
 #include <linux/netlink.h>
 #include <string.h>
 #include <unistd.h>
+#include <signal.h>
+#include <errno.h>
+#include <poll.h>
+#include <sys/signalfd.h>
 #include "filter_client.h"
 
 static const int NETLINK_USER = 31;
-
+static const int SOCKET_FD_INDEX = 0;
+static const int SIGNAL_FD_INDEX = 1;
+	
 typedef struct FilterClientImpl {
 	int socket_fd;
+	int signal_fd;
+	int nfds;
+	struct pollfd *pfds;
 	struct sockaddr_nl destAddr;
 	struct iovec iov;
 } FilterClientImpl;
 
-static inline FilterClientImpl *impl(FilterClient *fc) {
-	return (FilterClientImpl *)fc->impl;
+static inline FilterClientImpl *impl(FilterClient *self) {
+	return (FilterClientImpl *)self->impl;
 }
 
 static int getSocket(struct FilterClient *self) {
 	return impl(self)->socket_fd;
 }
 
+static struct pollfd *getSocketPollFd(FilterClient *self) {
+	return &impl(self)->pfds[SOCKET_FD_INDEX];
+}
+
+static struct pollfd *getSignalPollFd(FilterClient *self) {
+	return &impl(self)->pfds[SIGNAL_FD_INDEX];
+}
+
+static void buildPollDescriptors(struct FilterClient *self) {
+	const int nfds = 2;
+	
+	struct pollfd *pfds;
+	
+	pfds = (struct pollfd *)malloc(sizeof(struct pollfd) * impl(self)->nfds);
+	
+	pfds[SOCKET_FD_INDEX].fd = impl(self)->socket_fd;
+	pfds[SOCKET_FD_INDEX].events = POLLIN | POLLERR | POLLHUP;
+	
+	pfds[SIGNAL_FD_INDEX].fd = impl(self)->signal_fd;
+	pfds[SIGNAL_FD_INDEX].events = POLLIN | POLLERR | POLLHUP;
+	
+	impl(self)->nfds = nfds;
+	impl(self)->pfds = pfds;
+}
+
+static bool buildSignalHandler(struct FilterClient *self) {
+	int signal_fd;
+	unsigned int i;
+	sigset_t sigset;
+	int sigs[] = {SIGHUP, SIGINT, SIGTERM};
+	
+	if (sigemptyset(&sigset) != 0) {
+		perror("sigemptyset()");
+		return false;
+	}
+	
+	for (i = 0; i < sizeof(sigs)/sizeof(sigs[0]); i++) {			
+		if (sigaddset(&sigset, sigs[i]) != 0) {
+			fprintf(stderr, "Error calling sigaddset for %s: %s\n", strsignal(sigs[i]), strerror(errno));
+			return false;
+		}
+	}
+	
+	if (sigprocmask(SIG_BLOCK, &sigset, NULL) != 0) {
+		perror("sigprocmask()");
+		return false;
+	}
+	
+	if ((signal_fd = signalfd(-1, &sigset, 0)) == -1) {
+		perror("signalfd()");
+		return false;
+	}
+	
+	impl(self)->signal_fd = signal_fd;
+	
+	return true;
+}
+
 static bool buildSocket(struct FilterClient *self) {
 	int socket_fd;
+	
 	socket_fd = socket(PF_NETLINK, SOCK_RAW, NETLINK_USER);
     if (socket_fd < 0) {
 		perror("socket(PF_NETLINK, SOCK_RAW, NETLINK_USER)");
         return false;
 	}
+	
 	impl(self)->socket_fd = socket_fd;
+	
 	return true;
 }
 
@@ -95,20 +165,12 @@ static void fillMsgHdr(struct FilterClient *self, struct msghdr *msg) {
     msg->msg_iovlen = 1;
 }
 
-bool initialize(struct FilterClient *self, struct FilterOptions *filterOptions) {
+static bool sendFilterOptions(struct FilterClient *self, struct FilterOptions *filterOptions) {
 	struct nlmsghdr *netlinkMessageHeader;
 	const int MAX_RESPONSE_SIZE = 128;
 	char *responseBuffer;
 	ssize_t response_length;
 	struct msghdr msg;
-	
-	if (!buildSocket(self))
-		return false;
-	
-	if (!bindToSourceAddress(self))
-		return false;
-	
-	fillDestinationAddress(self);
 	
 	netlinkMessageHeader = createNetlinkMessageHeader(getPayloadSize(filterOptions));
 	
@@ -143,15 +205,56 @@ bool initialize(struct FilterClient *self, struct FilterOptions *filterOptions) 
 	
 	free(netlinkMessageHeader);
 	free(responseBuffer);
+	
 	return true;
 }
 
-unsigned char *receive(struct FilterClient *self, size_t *size) {
+bool initialize(struct FilterClient *self, struct FilterOptions *filterOptions) {
+
+	if (!buildSocket(self))
+		return false;
+	
+	if (!buildSignalHandler(self))
+		return false;
+	
+	if (!bindToSourceAddress(self))
+		return false;
+	
+	buildPollDescriptors(self);
+	
+	fillDestinationAddress(self);
+	
+	return sendFilterOptions(self, filterOptions);
+}
+
+static bool isTerminationSignal(struct FilterClient *self) {
+	struct signalfd_siginfo info;
+	ssize_t bytes;
+	bytes = read(impl(self)->signal_fd, &info, sizeof(struct signalfd_siginfo));
+	if (bytes != sizeof(struct signalfd_siginfo)) {
+		fprintf(stderr, "Error reading signal data. Got only %zu bytes instead of the expected %zu bytes.", bytes, sizeof(struct signalfd_siginfo));
+		return false;
+	}
+
+	unsigned sig = info.ssi_signo;
+
+	switch (sig) {
+		case SIGINT:
+		case SIGHUP:
+		case SIGTERM:
+			return true;
+		default:
+			return false;
+	}
+}
+
+static unsigned char *handleIncomingPacket(struct FilterClient *self, size_t *size) {
 	const size_t MAX_PAYLOAD = ETH_FRAME_LEN;
 	struct nlmsghdr *netlinkMessageHeader;
 	struct msghdr msg;
 	unsigned char *buffer;
 	ssize_t length;
+	
 	memset(&msg, 0, sizeof(struct msghdr));
 	
 	netlinkMessageHeader = createNetlinkMessageHeader(MAX_PAYLOAD);
@@ -177,7 +280,62 @@ unsigned char *receive(struct FilterClient *self, size_t *size) {
 	return buffer;
 }
 
+unsigned char *receive(struct FilterClient *self, size_t *size) {
+	struct pollfd *pfd;
+	int pollResult;
+	while (true) {
+		pollResult = poll(impl(self)->pfds, impl(self)->nfds, -1);
+		
+		if (pollResult < 0) {
+			perror("poll()");
+			return NULL;
+		}
+		
+		pfd = getSocketPollFd(self);
+		
+		if (pfd->revents & POLLIN) {
+			return handleIncomingPacket(self, size);
+		}
+		
+		if (pfd->revents & POLLHUP) {
+			printf("Disconnected.\n");
+			return NULL;
+		}
+		
+		if (pfd->revents & POLLERR) {
+			printf("Error.\n");
+			return NULL;
+		}
+		
+		pfd = getSignalPollFd(self);
+		
+		if (pfd->revents & POLLIN) {
+			if (isTerminationSignal(self))
+				return NULL;
+		}
+		
+		if (pfd->revents & POLLERR) {
+			printf("Error.\n");
+			return NULL;
+		}
+
+		if (pfd->revents & POLLHUP){
+			printf("Disconnected.\n");
+			return NULL;
+		}
+		
+		printf("Error. Poll returned nothing useful.");
+	}
+}
+
 void destroy(struct FilterClient *self) {
+	FilterOptions *filterOptions = FilterOptions_Create();
+	filterOptions->setShutdown(filterOptions);
+	
+	sendFilterOptions(self, filterOptions);
+	
+	FilterOptions_Destroy(&filterOptions);
+	free(impl(self)->pfds);
 	free(self->impl);
 }
 
