@@ -1,0 +1,9 @@
+*.o
+*.ko
+*.o.cmd
+*.ko.cmd
+modules.order
+*.mod.c
+Module.symvers
+**/.tmp_versions/**
+packet_inspector
