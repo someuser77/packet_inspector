@@ -3,9 +3,6 @@
 
 #include <stdbool.h>
 
-//#include <stdint.h>
-
-
 #include <linux/if_ether.h>
 #include <linux/if_arp.h>
 #include <linux/ip.h>
@@ -40,50 +37,13 @@ DEFINE_PACKET_FILTER(Ip, iphdr);
 DEFINE_PACKET_FILTER(Ip6, ipv6hdr);
 DEFINE_PACKET_FILTER(Tcp, tcphdr);
 DEFINE_PACKET_FILTER(Udp, udphdr);
-//*/
-/*
-typedef struct EthPacketFilter {
-	void *params;
-	bool (*match)(const struct EthPacketFilter * const packetFilter, const struct ethhdr * const packet);
-	bool (*matcher)(const struct ethhdr * const packet, void *params);
-	void (*destroy)(struct EthPacketFilter *);
-} EthPacketFilter;
-
-typedef struct IpPacketFilter {
-	void *params;
-	bool (*match)(const struct IpPacketFilter * const packetFilter, const struct iphdr * const packet);
-	bool (*matcher)(const struct iphdr * const packet, void *params);
-	void (*destroy)(struct IpPacketFilter *);
-} IpPacketFilter;
-
-typedef struct Ip6PacketFilter {
-	void *params;
-	bool (*match)(const struct Ip6PacketFilter * const packetFilter, const struct ipv6hdr * const packet);
-	bool (*matcher)(const struct ipv6hdr * const packet, void *params);
-	void (*destroy)(struct Ip6PacketFilter *);
-} Ip6PacketFilter;
-
-typedef struct TcpPacketFilter {
-	void *params;
-	bool (*match)(const struct TcpPacketFilter * const packetFilter, const struct tcphdr * const packet);
-	bool (*matcher)(const struct tcphdr * const packet, void *params);
-	void (*destroy)(struct TcpPacketFilter *);
-} TcpPacketFilter;
-
-typedef struct UdpPacketFilter {
-	void *params;
-	bool (*match)(const struct UdpPacketFilter * const packetFilter, const struct udphdr * const packet);
-	bool (*matcher)(const struct udphdr * const packet, void *params);
-	void (*destroy)(struct UdpPacketFilter *);
-} UdpPacketFilter;
-*/
 
 DeviceFilter *PacketFilter_createDeviceNameFilter(const char const device[IFNAMSIZ]);
 
 EthPacketFilter *PacketFilter_createEthSrcMacFilter(const unsigned char const mac[ETH_ALEN]);
 EthPacketFilter *PacketFilter_createEthDstMacFilter(const unsigned char const mac[ETH_ALEN]);
 
-EthPacketFilter *PacketFilter_createEthEthTypeFilter(unsigned short ethType);
+EthPacketFilter *PacketFilter_createEthEtherTypeFilter(unsigned short etherType);
 
 IpPacketFilter *PacketFilter_createIpSrcIpFilter(uint32_t ip);
 IpPacketFilter *PacketFilter_createIpDstIpFilter(uint32_t ip);

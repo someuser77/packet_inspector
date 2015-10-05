@@ -21,6 +21,7 @@
 // for now we don't want to work with unaligned pointer access.
 typedef struct {
 	unsigned short map;
+	unsigned short etherType;
 	unsigned char srcMac[ETH_ALEN];
 	unsigned char dstMac[ETH_ALEN];
 	uint32_t srcIp;
@@ -44,6 +45,7 @@ inline FilterOptionsImpl* impl(FilterOptions *self) {
 					return is_bit_set(impl(self)->map, bit);				\
 				}
 
+#define ETHER_TYPE_SET_BIT	0
 #define SRC_MAC_SET_BIT 		1
 #define DST_MAC_SET_BIT 		2
 #define SRC_IP_SET_BIT 			3
@@ -56,6 +58,7 @@ inline FilterOptionsImpl* impl(FilterOptions *self) {
 #define DST_PORT_SET_BIT 		10
 #define SHUTDOWN					15
 
+define_isSetFunction(isEtherTypeSet, ETHER_TYPE_SET_BIT);
 define_isSetFunction(isSrcMacSet, SRC_MAC_SET_BIT);
 define_isSetFunction(isDstMacSet, DST_MAC_SET_BIT);
 define_isSetFunction(isSrcIpSet, SRC_IP_SET_BIT);
@@ -74,6 +77,16 @@ static bool isEmpty(FilterOptions *self) {
 
 static void set(FilterOptions *self, int bit) {
 	set_bit(impl(self)->map, bit);
+}
+
+static bool setEtherType(FilterOptions *self, unsigned short etherType) {
+	set(self, ETHER_TYPE_SET_BIT);
+	impl(self)->etherType = etherType;
+	return true;
+}
+
+static unsigned short getEtherType(FilterOptions *self) {
+	return impl(self)->etherType;
 }
 
 static bool setSrcMac(FilterOptions *self, const unsigned char const mac[ETH_ALEN]) {
@@ -310,6 +323,10 @@ FilterOptions *FilterOptions_Create() {
 	filterOptions->isDstPortSet = isDstPortSet;
 	filterOptions->setDstPort = setDstPort;
 	filterOptions->getDstPort = getDstPort;
+	
+	filterOptions->isEtherTypeSet = isEtherTypeSet;
+	filterOptions->setEtherType = setEtherType;
+	filterOptions->getEtherType = getEtherType;
 	
 	filterOptions->description = getDescription;
 

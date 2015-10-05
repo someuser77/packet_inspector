@@ -75,6 +75,10 @@ typedef struct FilterOptions {
 	bool (*isDstPortSet)(struct FilterOptions *self);
 	bool (*setDstPort)(struct FilterOptions *self, uint16_t port);
 	uint16_t (*getDstPort)(struct FilterOptions *self);
+	
+	bool (*isEtherTypeSet)(struct FilterOptions *self);
+	bool (*setEtherType)(struct FilterOptions *self, unsigned short etherType);
+	unsigned short (*getEtherType)(struct FilterOptions *self);
 
 	bool (*isEmpty)(struct FilterOptions *self);
 	

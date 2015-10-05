@@ -290,6 +290,18 @@ char *test_FilterOptions_TestEmpty() {
 	return NULL;
 }
 
+char *test_FilterOptions_SetGetEtherType() {
+	unsigned short etherType = ETH_P_IP;
+	
+	mu_assert(!filterOptions->isEtherTypeSet(filterOptions), "EtherType was marked as set.");
+	
+	mu_assert(filterOptions->setEtherType(filterOptions, etherType), "setEtherType failed.");
+	
+	mu_assert(filterOptions->getEtherType(filterOptions) == etherType, "getEtherType returned wrong EtherType.");
+	
+	return NULL;
+}
+
 void init() {
 	filterOptions = FilterOptions_Create();
 }
@@ -316,6 +328,7 @@ char *all_tests() {
 	mu_run_test(test_FilterOptions_Serialization);
 	mu_run_test(test_FilterOptions_SetGetShutdown);
 	mu_run_test(test_FilterOptions_TestEmpty);
+	mu_run_test(test_FilterOptions_SetGetEtherType);
 	return NULL;
 }
 

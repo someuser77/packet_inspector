@@ -20,6 +20,12 @@ static bool filterDeviceName(const char const device[IFNAMSIZ], void *param) {
 	return memcmp(device, paramDevice, min(strlen(device), strlen(paramDevice))) == 0;
 }
 
+static bool filterEtherType(const struct ethhdr * const packet, void *param) {
+	unsigned short etherType;
+	memcpy(&etherType, param, sizeof(unsigned short));
+	return packet->h_proto == htons(etherType);
+}
+
 static bool filterSrcMac(const struct ethhdr * const packet, void *param) {
 	unsigned char mac[ETH_ALEN];
 	const unsigned char *srcMac = packet->h_source;
@@ -169,6 +175,14 @@ EthPacketFilter *PacketFilter_createEthSrcMacFilter(const unsigned char const ma
 
 EthPacketFilter *PacketFilter_createEthDstMacFilter(const unsigned char const mac[ETH_ALEN]) {
 	return PacketFilter_createEthMacFilter(filterDstMac, mac);
+}
+
+EthPacketFilter *PacketFilter_createEthEtherTypeFilter(unsigned short etherType) {
+	EthPacketFilter *filter = (EthPacketFilter *)create(PacketFilter_Eth);
+	filter->params = alloc(sizeof(unsigned short));
+	*((unsigned short *)filter->params) = etherType;
+	filter->matcher = filterEtherType;
+	return filter;
 }
 
 static IpPacketFilter *PacketFilter_createIpFilter(bool (*filterIp)(const struct iphdr * const packet, void *ip), uint32_t ip) {

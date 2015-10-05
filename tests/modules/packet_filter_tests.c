@@ -61,23 +61,23 @@ const unsigned char udp_ip6_packet[] = {
 	0x04
 };
 
-static inline struct ethhdr *eth_header(const void *packet) {
+static inline struct ethhdr *eth_header(const unsigned char * const packet) {
 	return (struct ethhdr *)packet;
 }
 
-static inline struct iphdr *ip_header(const void *packet) {
+static inline struct iphdr *ip_header(const unsigned char * const packet) {
 	return (struct iphdr *)(packet + sizeof(struct ethhdr));
 }
 
-static inline struct ipv6hdr *ip6_header(const void *packet) {
+static inline struct ipv6hdr *ip6_header(const unsigned char * const packet) {
 	return (struct ipv6hdr *)(packet + sizeof(struct ethhdr));
 }
 
-static inline struct tcphdr *tcp_ip_header(const void *packet) {
+static inline struct tcphdr *tcp_ip_header(const unsigned char * const packet) {
 	return (struct tcphdr *)(packet + sizeof(struct ethhdr) + sizeof(struct iphdr));
 }
 
-static inline struct udphdr *udp_ip6_header(const void *packet) {
+static inline struct udphdr *udp_ip6_header(const unsigned char * const packet) {
 	return (struct udphdr *)(packet + sizeof(struct ethhdr) + sizeof(struct ipv6hdr));
 }
 
@@ -168,6 +168,12 @@ char *test_PacketFilter_FilterDeviceName() {
 	return NULL;
 }
 
+char *test_PacketFilter_FilterEtherType() {
+	unsigned short etherType = ETH_P_IP;
+	EthPacketFilter *filter = PacketFilter_createEthEtherTypeFilter(etherType);
+	mu_assert(filter->match(filter, eth_header(tcp_ip_packet)), "EtherType filter did not match etherType.");
+	return NULL;
+}
 
 
 char *all_tests() {
@@ -184,6 +190,7 @@ char *all_tests() {
 	mu_run_test(test_PacketFilter_FilterTcpDstPort);
 	mu_run_test(test_PacketFilter_FilterUdpSrcPort);
 	mu_run_test(test_PacketFilter_FilterUdpDstPort);
+	mu_run_test(test_PacketFilter_FilterEtherType);
 	return NULL;
 }
 
