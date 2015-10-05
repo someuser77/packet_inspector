@@ -35,6 +35,10 @@ static struct netlink_kernel_cfg netlink_cfg = {
    .input = nl_recv_msg,
 };
 
+static void logContextInfo(void) {
+	klog_info("in_irq? %lu in_softirq? %lu in_interrupt? %lu in_serving_softirq? %lu", in_irq(), in_softirq(), in_interrupt(), in_serving_softirq());
+}
+
 static int sendResponseToClient(int pid, void *buffer, size_t length) {
 	struct nlmsghdr *nlh;
 	struct sk_buff *skb_out = nlmsg_new(length, 0);
@@ -96,7 +100,9 @@ static void nl_recv_msg(struct sk_buff *skb) {
 	
 	nlh = (struct nlmsghdr *)skb->data;
 	messagePid	= nlh->nlmsg_pid;
-	klog_info("got a message from PID %d.\nMessage Length: %d\nData Length: %d\n", messagePid, nlh->nlmsg_len, nlh->nlmsg_len - NLMSG_HDRLEN);
+	klog_info("got a message from Client: %d. Message Length: %d Data Length: %d.", messagePid, nlh->nlmsg_len, nlh->nlmsg_len - NLMSG_HDRLEN);
+	
+	logContextInfo();
 	
 	filterOptions = FilterOptions_Deserialize(NLMSG_DATA(nlh), NLMSG_PAYLOAD(nlh,0));
 	
@@ -143,17 +149,12 @@ int packet_interceptor(struct sk_buff *skb,  struct net_device *dev,  struct pac
 	struct net_device *device;
 	
 	if (!enabled) {
-		return 0;
-	}
-	
-	if (!skb) {
-		klog_warn("SKB was null. Packet Dropped!");
-		return 0;
+		goto free_skb;
 	}
 	
 	if (!skb->dev) {
 		klog_warn("SKB->Dev was null, Packet Dropped!");
-		return 0;
+		goto free_skb;
 	}
 	
 	//klog_info("Got a packet from device %s", skb->dev->name);
@@ -162,7 +163,7 @@ int packet_interceptor(struct sk_buff *skb,  struct net_device *dev,  struct pac
 	
 	if (device->type != ARPHRD_ETHER) {
 		klog_warn("Got a non-ethernet packet %d. Packet Dropped!", device->type);
-		return 0;
+		goto free_skb;
 	}
 	
 	/*
@@ -172,46 +173,27 @@ int packet_interceptor(struct sk_buff *skb,  struct net_device *dev,  struct pac
 	}
 	*/
 	
-	if (executer == NULL) {
-		klog_info("Executer was null.");
-		return 0;
-	}
-	
-	if (executer->matchAll == NULL) {
-		klog_info("Executer->matchAll was null.");
-		return 0;		
-	}
-	
 	if (!executer->matchAll(executer, skb)) {
-		return 0;
+		goto free_skb;
 	}
 	
 	length = skb->len;
 	
 	klog_info("Got a %s packet. Length: %zu.", skb_is_nonlinear(skb) ? "nonlinear" : "linear" ,length);
-	klog_info("in_irq? %lu in_softirq? %lu in_interrupt? %lu in_serving_softirq? %lu", in_irq(), in_softirq(), in_interrupt(), in_serving_softirq());
 	
+	logContextInfo();
+	
+	// this handler runs in softirq context so we can't use vmalloc or kmalloc with GFP_KERNEL because
+	// it may sleep locking up the kernel.
 	if ((buffer = kmalloc(length, GFP_ATOMIC)) == NULL) {
 		klog_error("Unable to allocate space for user-space tarnsfer of %zu bytes.", length);
-		return 0;
+		goto free_skb;
 	}
 	
 	if (skb_copy_bits(skb, 0, buffer, length) != 0) {
 		klog_error("Error copying skb data into buffer.");
-		goto cleanup;
+		goto free_buffer_and_skb;
 	}
-	/*
-	skb_out = nlmsg_new(length, 0);
-	if (skb_out == NULL) {
-		klog_error("nlmsg_new() failed");
-		goto cleanup;
-	}
-	
-	nlh = nlmsg_put(skb_out, 0, 0, NLMSG_DONE, length, 0);
-	NETLINK_CB(skb_out).dst_group = 0;
-	memcpy(NLMSG_DATA(nlh), buffer, length);
-	res = nlmsg_unicast(nl_sk, skb_out, pid);
-	*/
 	
 	res = sendResponseToClient(pid, buffer, length);
 	
@@ -219,8 +201,10 @@ int packet_interceptor(struct sk_buff *skb,  struct net_device *dev,  struct pac
         klog_info("Error while sending data to user");
 	}
 	
-cleanup:
+free_buffer_and_skb:
 	kfree(buffer);
+free_skb:
+	kfree_skb(skb);
 	return 0;
 }
 
