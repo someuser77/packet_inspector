@@ -7,6 +7,7 @@
 #include <net/sock.h>
 #include <linux/if_arp.h>
 #include <linux/mutex.h>
+#include <linux/spinlock.h>
 
 #define MODULE_NAME "udp_device_filter"
 
@@ -22,9 +23,8 @@ static const int NETLINK_USER = 31;
 
 static struct packet_type pt;
 static struct sock *nl_sk = NULL;
-static bool enabled = false;
-static int device_was_added = 0;
-static int socket_was_created = 0;
+static bool initialized = false;
+DEFINE_SPINLOCK(packetProcessing);
 static int pid;
 DEFINE_MUTEX(initializationLock);
 static FilterExecuter *executer = NULL;
@@ -38,6 +38,8 @@ static struct netlink_kernel_cfg netlink_cfg = {
 static void logContextInfo(void) {
 	klog_info("in_irq? %lu in_softirq? %lu in_interrupt? %lu in_serving_softirq? %lu", in_irq(), in_softirq(), in_interrupt(), in_serving_softirq());
 }
+
+int packet_interceptor(struct sk_buff *skb,  struct net_device *dev,  struct packet_type *pt, struct net_device *orig_dev);
 
 static int sendResponseToClient(int pid, void *buffer, size_t length) {
 	struct nlmsghdr *nlh;
@@ -70,17 +72,45 @@ static int sendTextResponseToClient(int pid, char *response){
 }
 
 static void initialize(struct FilterOptions *filterOptions) {
+	
 	executer = FilterExecuter_Create(filterOptions);
+	
+	pt.type = htons(ETH_P_ALL);
+	pt.dev = NULL;
+	pt.func = packet_interceptor;
+	
+	dev_add_pack(&pt);
+	
+	klog_info("udp_device_filter added\n");
+	
+	
+	
+	
 	sendTextResponseToClient(pid, "ok");	
 	klog_info("Sending is now enabled!");	
-	enabled = true;
+	initialized = true;
 }
 
 static void shutdown(void) {
-	enabled = false;
+
 	sendTextResponseToClient(pid, "shutdown");
 	klog_info("Shutting down!");
+	
+	spin_lock(&packetProcessing);
+	
+	initialized = false;
 	executer->destroy(executer);
+	executer = NULL;
+	
+	spin_unlock(&packetProcessing);
+	
+	if (pt.dev != NULL) 
+		dev_put(pt.dev);
+	
+	dev_remove_pack(&pt);
+	
+	klog_info("udp_device_filter removed\n");
+	
 }
 
 static void uninitializedShutdown(int pid) {
@@ -89,6 +119,21 @@ static void uninitializedShutdown(int pid) {
 
 static void duplicateInitialization(int pid) {
 	sendTextResponseToClient(pid, "Got initialization message but already initialized.");
+}
+
+static bool handleEdgeCases(FilterOptions *filterOptions, int pid){
+	
+	if (!initialized && filterOptions->isShutdownSet(filterOptions)) {
+		uninitializedShutdown(pid);
+		return true;
+	}
+	
+	if (initialized && !filterOptions->isShutdownSet(filterOptions)) {
+		duplicateInitialization(pid);
+		return true;
+	}
+	
+	return false;
 }
 
 // http://linux-development-for-fresher.blogspot.co.il/2012/05/understanding-netlink-socket.html
@@ -110,28 +155,22 @@ static void nl_recv_msg(struct sk_buff *skb) {
 	
 	mutex_lock(&initializationLock);
 	
-	if (!enabled && filterOptions->isShutdownSet(filterOptions)) {
-		
-		uninitializedShutdown(messagePid);
-		goto cleanup;
-	}
-	
-	if (enabled && !filterOptions->isShutdownSet(filterOptions)) {
-		
-		duplicateInitialization(messagePid);
-		goto cleanup;
-	}
+	if (handleEdgeCases(filterOptions, messagePid))
+		goto release;
 	
 	pid = messagePid;
 	
 	if (!filterOptions->isShutdownSet(filterOptions)) {
+		
 		initialize(filterOptions);
+		
 	} else {
+		
 		shutdown();
+		
 	}
-	
-cleanup:
-	
+
+release:
 	vfree(filterOptions);
 	
 	// http://stackoverflow.com/questions/10138848/kernel-crash-when-trying-to-free-the-skb-with-nlmsg-freeskb-out
@@ -147,8 +186,9 @@ int packet_interceptor(struct sk_buff *skb,  struct net_device *dev,  struct pac
 	int res;
 	//struct nlmsghdr *nlh;
 	struct net_device *device;
+	bool match;
 	
-	if (!enabled) {
+	if (!initialized) {
 		goto free_skb;
 	}
 	
@@ -173,13 +213,29 @@ int packet_interceptor(struct sk_buff *skb,  struct net_device *dev,  struct pac
 	}
 	*/
 	
-	if (!executer->matchAll(executer, skb)) {
+	// executer might be released while inside softirq?
+	
+	if (!initialized)
+		goto free_skb;
+	
+	spin_lock(&packetProcessing);
+	
+	if (!initialized){
+		spin_unlock(&packetProcessing);
+		goto free_skb;
+	}
+	
+	match = executer->matchAll(executer, skb);
+	
+	spin_unlock(&packetProcessing);
+	
+	if (!match) {
 		goto free_skb;
 	}
 	
 	length = skb->len;
 	
-	klog_info("Got a %s packet. Length: %zu.", skb_is_nonlinear(skb) ? "nonlinear" : "linear" ,length);
+	klog_info("Matched a %s packet. Length: %zu.", skb_is_nonlinear(skb) ? "nonlinear" : "linear" ,length);
 	
 	logContextInfo();
 	
@@ -209,11 +265,6 @@ free_skb:
 }
 
 static int __init init_udp_device_filter_module(void) {
-	
-	pt.type = htons(ETH_P_ALL);
-	pt.dev = NULL;
-	pt.func = packet_interceptor;
-	
 	nl_sk = netlink_kernel_create(&init_net, NETLINK_USER, &netlink_cfg);
 
     // nl_sk = netlink_kernel_create(&init_net, NETLINK_USER, 0, hello_nl_recv_msg,
@@ -223,25 +274,14 @@ static int __init init_udp_device_filter_module(void) {
         klog_error("Error creating socket.\n");
         return -1;
     }
-	
-	socket_was_created = 1;
-	
-	dev_add_pack(&pt);
-	
-	device_was_added = 1;
-	
-	klog_info("udp_device_filter added\n");
+
 	return 0;
 }
 
 static void __exit cleanup_udp_device_filter_module(void) {
-	if (device_was_added) {
-		dev_remove_pack(&pt);
-	}
-	if (socket_was_created) {
+	if (nl_sk != NULL) {
 		netlink_kernel_release(nl_sk);
 	}
-	klog_info("udp_device_filter removed\n");
 }
 
 module_init(init_udp_device_filter_module);
