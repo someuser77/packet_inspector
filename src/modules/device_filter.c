@@ -72,10 +72,14 @@ static int sendTextResponseToClient(int pid, char *response){
 }
 
 static void initialize(struct FilterOptions *filterOptions) {
+	unsigned short etherType = ETH_P_ALL;
 	
 	executer = FilterExecuter_Create(filterOptions);
 	
-	pt.type = htons(ETH_P_ALL);
+	if (filterOptions->isEtherTypeSet(filterOptions))
+		etherType = filterOptions->getEtherType(filterOptions);
+	
+	pt.type = htons(etherType);
 	pt.dev = NULL;
 	pt.func = packet_interceptor;
 	
