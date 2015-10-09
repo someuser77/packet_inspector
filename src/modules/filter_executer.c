@@ -124,7 +124,7 @@ bool matchAll(struct FilterExecuter *self, struct sk_buff *skb) {
 	struct UdpFilterList *udpFilter = NULL;
 	
 	unsigned char ipProtocol;
-	
+	skb_reset_mac_header(skb);
 	eth = eth_hdr(skb);
 	if (eth == NULL) {
 		klog_warn("SKB ETH header was null.");
@@ -155,6 +155,7 @@ bool matchAll(struct FilterExecuter *self, struct sk_buff *skb) {
 			break;
 		default:
 			// only IP and IPv6 is currently supported.
+			klog_info("Packet was not IP/IPv6");
 			return false;
 	}
 	
@@ -177,6 +178,7 @@ bool matchAll(struct FilterExecuter *self, struct sk_buff *skb) {
 			ITERATE_FILTERS(udpFilter, udpFilters(self), filters, udp);
 			break;
 		default:
+			klog_info("Packet was not TCP/UDP");
 			return false;
 	}
 	
@@ -185,6 +187,7 @@ bool matchAll(struct FilterExecuter *self, struct sk_buff *skb) {
 	
 	//klog_info("Inside Match All... Packet Protocol was: %04X", ntohs(skb->protocol));
 	
+	//klog_info("Filters matched: %d out of %d.", matchedFilters, getTotalFilters(self));
 	
 	return matchedFilters == getTotalFilters(self);
 }
@@ -200,6 +203,14 @@ FilterExecuter *FilterExecuter_Create(FilterOptions *filterOptions) {
 	INIT_LIST_HEAD(&impl->tcp);
 	INIT_LIST_HEAD(&impl->udp);
 	
+	if (filterOptions->isEtherTypeSet(filterOptions)) {
+		unsigned short etherType;
+		EthFilterList *ethFilter = (EthFilterList *)vmalloc(sizeof(EthFilterList));
+		etherType = filterOptions->getEtherType(filterOptions);
+		ethFilter->filter = PacketFilter_createEthEtherTypeFilter(etherType);
+		list_add(&ethFilter->filters, &impl->eth);
+		impl->totalFilters++;
+	}
 	
 	if (filterOptions->isSrcMacSet(filterOptions)) {
 		unsigned char mac[ETH_ALEN];
@@ -245,11 +256,14 @@ FilterExecuter *FilterExecuter_Create(FilterOptions *filterOptions) {
 		impl->totalFilters++;
 	}
 	
-	if (filterOptions->isDeviceSet(filterOptions)) {
-		impl->totalFilters++;
-	}
-	
 	if (filterOptions->isProtocolSet(filterOptions)) {
+		unsigned char protocol;
+		
+		IpFilterList *ipFilter = (IpFilterList *)vmalloc(sizeof(IpFilterList));
+		protocol = filterOptions->getProtocol(filterOptions);
+		ipFilter->filter = PacketFilter_createIpProtocolFilter(protocol);
+		list_add(&ipFilter->filters, &impl->ip);
+		
 		impl->totalFilters++;
 	}
 	
