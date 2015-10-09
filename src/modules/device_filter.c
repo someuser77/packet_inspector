@@ -9,7 +9,7 @@
 #include <linux/mutex.h>
 #include <linux/spinlock.h>
 
-#define MODULE_NAME "udp_device_filter"
+#define MODULE_NAME "packet_device_filter"
 
 #include "utils.h"
 #include "filter_executer.h"
@@ -42,6 +42,7 @@ static struct netlink_kernel_cfg netlink_cfg = {
    .input = nl_recv_msg,
 };
 
+static void logContextInfo(void) __attribute__ ((unused));
 static void logContextInfo(void) {
 	klog_info("in_irq? %lu in_softirq? %lu in_interrupt? %lu in_serving_softirq? %lu", in_irq(), in_softirq(), in_interrupt(), in_serving_softirq());
 }
@@ -61,6 +62,7 @@ static const char * const getPacketTypeDescription(unsigned char pktType) {
 	return pktTypes[pktType];
 }
 
+void print_ethernet_header(struct ethhdr *eth) __attribute__ ((unused));
 void print_ethernet_header(struct ethhdr *eth)
 {     
     printk(KERN_INFO "Ethernet Header:\n"
@@ -142,7 +144,7 @@ static void initialize(struct FilterOptions *filterOptions) {
 	pt.dev = getConfiguredNetDevice(filterOptions);
 	dev_add_pack(&pt);
 	
-	klog_info("udp_device_filter added\n");
+	klog_info("packet_device_filter added\n");
 	
 	sendTextResponseToClient(pid, "ok");	
 	klog_info("Sending is now enabled!");	
@@ -176,7 +178,7 @@ static void shutdown(void) {
 	
 	dev_remove_pack(&pt);
 	
-	klog_info("udp_device_filter removed\n");
+	klog_info("packet_device_filter removed\n");
 	
 }
 
@@ -290,8 +292,8 @@ int packet_interceptor(struct sk_buff *skb,  struct net_device *dev,  struct pac
 	if (skb_mac_header(skb) + ETH_HLEN > skb->data)
 		klog_error("BAD MAC HDR: skb_mac_header(skb) + ETH_HLEN > skb->data");
 	
-	skb_reset_mac_header(skb);
-	print_ethernet_header(eth_hdr(skb));
+	//skb_reset_mac_header(skb);
+	//print_ethernet_header(eth_hdr(skb));
 	
 	/*
 	if (skb_is_nonlinear(skb)){
@@ -359,7 +361,7 @@ free_skb:
 	return 0;
 }
 
-static int __init init_udp_device_filter_module(void) {
+static int __init init_packet_device_filter_module(void) {
 	nl_sk = netlink_kernel_create(&init_net, NETLINK_USER, &netlink_cfg);
 
     // nl_sk = netlink_kernel_create(&init_net, NETLINK_USER, 0, hello_nl_recv_msg,
@@ -373,11 +375,11 @@ static int __init init_udp_device_filter_module(void) {
 	return 0;
 }
 
-static void __exit cleanup_udp_device_filter_module(void) {
+static void __exit cleanup_packet_device_filter_module(void) {
 	if (nl_sk != NULL) {
 		netlink_kernel_release(nl_sk);
 	}
 }
 
-module_init(init_udp_device_filter_module);
-module_exit(cleanup_udp_device_filter_module);
+module_init(init_packet_device_filter_module);
+module_exit(cleanup_packet_device_filter_module);
