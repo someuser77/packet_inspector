@@ -71,6 +71,7 @@ char *test_Hashtable_TestCollision() {
 	int data1 = 8;
 	int data2 = 9;
 	int data3 = 10;
+	int data4 = 11;
 	int key1 = 5;
 	int key2 = key1 + DEFAULT_BUCKETS_COUNT;
 	int key3 = key2 + DEFAULT_BUCKETS_COUNT;
@@ -89,11 +90,54 @@ char *test_Hashtable_TestCollision() {
 	mu_assert(hashtable->get(hashtable, key2) == &data2, "Failed to find value of key2");
 	mu_assert(hashtable->get(hashtable, key3) == &data3, "Failed to find value of key3");
 	
+	hashtable->set(hashtable, key2, &data4);
+	
+	mu_assert(hashtable->get(hashtable, key2) == &data4, "Failed to find value of key2 after overwriting it.");
+	
 	return NULL;
 }
 
-char *test_Hashtable_Huge_Hashtable() {
+static unsigned int simpleModuloHashForHugeTable(int key) {
+	return (unsigned int)(key % 65536);
+}
+
+char *test_Hashtable_HugeHashtable() {
+	int size = 65536;
+	Hashtable *hugeHashtable = Hashtable_Create(size, simpleModuloHashForHugeTable);
+	int *array;
+	int i, *value;
+	array = (int *)malloc(sizeof(int) * size);
+	for (i = 0; i < size; i++) {
+		array[i] = i;
+		hugeHashtable->set(hugeHashtable, i, array + i); 
+	}
+	for (i = 0; i < size; i++) {
+		value = hugeHashtable->get(hugeHashtable, i);
+		mu_assert(*value == i, "Huge Hashtable failed to get an item key.");
+	}
+	return NULL;
+}
+
+void sumAllValues(__attribute__((unused)) int key, void *value, void *context) {
+	*((int *)context) += *((int *)value);
+}
+
+char *test_Hashtable_Iteration() {
+	int keys[] = { 1, 2, 3, 1 + DEFAULT_BUCKETS_COUNT, 2 + DEFAULT_BUCKETS_COUNT, 3 + DEFAULT_BUCKETS_COUNT };
+	int values[] = { 1, 2, 3, 4, 5, 6 };
+	int i, size = 6;
+	int expected = 0, actual = 0;
 	
+	for (i = 0; i < size; i++) {
+		hashtable->set(hashtable, keys[i], &values[i]);
+		expected += values[i];
+	}
+	
+	hashtable->iterateAll(hashtable, sumAllValues, &actual);
+
+	mu_assert(expected == actual, "Iteration returned wrong sum.");
+	
+	return NULL;
 }
 
 char *all_tests() {
@@ -102,6 +146,8 @@ char *all_tests() {
 	mu_run_test(test_Hashtable_SimpleInsertionAndLookup);
 	mu_run_test(test_Hashtable_DifferentTypes);
 	mu_run_test(test_Hashtable_TestCollision);
+	mu_run_test(test_Hashtable_HugeHashtable);
+	mu_run_test(test_Hashtable_Iteration);
 	return NULL;
 }
 

@@ -10,6 +10,7 @@ typedef struct Hashtable {
 	void *(*get)(struct Hashtable *self, int key);
 	bool (*tryGet)(struct Hashtable *self, int key, void **value);
 	int *(*getBucketSizes)(struct Hashtable *self);
+	void (*iterateAll)(struct Hashtable *self, void (*visit)(int key, void *value, void *context), void *context);
 	void (*destroy)(struct Hashtable *self);
 } Hashtable;
 

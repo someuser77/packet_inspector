@@ -23,7 +23,6 @@ static HashtableImpl *impl(Hashtable *self) {
 	return (HashtableImpl *)self->impl;
 }
 
-
 #define for_each_node_in_bucket(idx, node, bucket) \
 for (idx = 0, node = bucket->head; idx < bucket->size; idx++, node = bucket->head + idx)
 
@@ -149,10 +148,14 @@ static int *getBucketSizes(struct Hashtable *self) {
 	return result;
 }
 
-
-static void destroy(struct Hashtable *self) {
-	int i;
+static void visitBucketsAndNodes(
+	struct Hashtable *self, 
+	void (*visitBucket)(HashtableBucket *bucket, void *context),
+	void (*visitBucketNode)(int key, void *value, void *context),
+	void *context) {
+	int i, j;
 	HashtableBucket *bucket;
+	HashtableNode *node;
 	
 	for (i = 0; i < impl(self)->numberOfBuckets; i++) {
 		bucket = getBucketByIndex(self, i);
@@ -160,9 +163,29 @@ static void destroy(struct Hashtable *self) {
 		if (!bucket)
 			continue;
 		
-		free(bucket->head);
-		free(bucket);
+		if (visitBucket)
+			visitBucket(bucket, context);
+		
+		if (visitBucketNode) {
+			for_each_node_in_bucket(j, node, bucket) {
+				visitBucketNode(node->key, node->value, context);
+			}
+		}
 	}
+}
+
+static void iterateAll(struct Hashtable *self, void (*visit)(int key, void *value, void *context), void *context) {
+	visitBucketsAndNodes(self, NULL, visit, context); 
+}
+
+static void freeSingleBucket(HashtableBucket *bucket, __attribute__((unused)) void *context) {
+	free(bucket->head);
+	free(bucket);
+}
+
+static void destroy(struct Hashtable *self) {
+	
+	visitBucketsAndNodes(self, freeSingleBucket, NULL, NULL);
 	
 	free(impl(self)->buckets);
 	free(impl(self));
@@ -186,6 +209,7 @@ Hashtable *Hashtable_Create(int buckets, unsigned int (*hash)(int key)) {
 	hashtable->get = get;
 	hashtable->tryGet = tryGet;
 	hashtable->getBucketSizes = getBucketSizes;
+	hashtable->iterateAll = iterateAll;
 	hashtable->destroy = destroy;
 	
 	return hashtable;
