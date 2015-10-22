@@ -1,7 +1,10 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <netinet/in.h>
+#include "lib/utils.h"
 #include "lib/filter_client.h"
+#include "lib/parser.h"
+#include "lib/parser_repository.h"
 
 static volatile bool enabled = true;
 
@@ -40,11 +43,26 @@ void hex_dump(unsigned char *buffer, size_t size) {
 	}
 }
 
+void displayPacket(ParserRepository *repo, unsigned char *buffer, size_t size) {
+	char *packet;
+	Parser parser;
+	parser = repo->getEthParser(repo);
+	
+	printf("=========================");
+	
+	
+	packet = parser(buffer, size);
+	printf("%s", packet);
+	free(packet);
+}
+
 int main(int __attribute__((unused)) argc, char __attribute__((unused)) *argv[]) {
 	unsigned char *buffer;
 	size_t size;
 	FilterClient *filterClient;
 	FilterOptions *filterOptions;	
+	ParserRepository *repository = ParserRepository_Create();
+	
 	printf("PID: %d", getpid());
 	filterOptions = FilterOptions_Create();
 	
@@ -63,14 +81,16 @@ int main(int __attribute__((unused)) argc, char __attribute__((unused)) *argv[])
 	//filterOptions->setDstMac(filterOptions, dstMac);
 	
 	//filterOptions->setSrcIp(filterOptions, srcIp);
-	filterOptions->setDstIp(filterOptions, ntohl(dstIp));
+	//filterOptions->setDstIp(filterOptions, ntohl(dstIp));
 	
 	//filterOptions->setSrcIp6(filterOptions, srcIp6);
 	//filterOptions->setDstIp6(filterOptions, dstIp6);
 	
-	//filterOptions->setDevice(filterOptions, "MyDevice", 8);
+	filterOptions->setDevice(filterOptions, "wlan0", 5);
 	
-	//filterOptions->setProtocol(filterOptions, IPPROTO_TCP);
+	filterOptions->setProtocol(filterOptions, IPPROTO_TCP);
+	
+	filterOptions->setEtherType(filterOptions, ETH_P_IP);
 	
 	//filterOptions->setSrcPort(filterOptions, 80);
 	//filterOptions->setDstPort(filterOptions, 80);
@@ -78,6 +98,11 @@ int main(int __attribute__((unused)) argc, char __attribute__((unused)) *argv[])
 	printf("Initializing with %s", filterOptions->description(filterOptions));
 	
 	filterClient = FilterClient_Create();
+	
+	if (!repository->populate(repository, "parsers")) {
+		log_error("Error populating parser repository.");
+		return EXIT_FAILURE;
+	}
 	
 	if (!filterClient->initialize(filterClient, filterOptions)) {
 		printf("Error initializing. Did you remember to load the module?\n");
@@ -92,7 +117,10 @@ int main(int __attribute__((unused)) argc, char __attribute__((unused)) *argv[])
 			break;
 		}
 		printf("Got %zu bytes.\n", size);
-		hex_dump(buffer, size);
+		//hex_dump(buffer, size);
+		
+		displayPacket(repository, buffer, size);		
+		
 		free(buffer);
 	}
 	printf("Destroy...");
