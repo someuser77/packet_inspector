@@ -46,7 +46,7 @@ char *test_Hashtable_DifferentTypes() {
 	mu_assert(hashtable->get(hashtable, 4) == &d, "Setting function pointer failed.");
 	return NULL;
 }
-
+static void printBucketSizes(Hashtable *hashtable, int buckets) __attribute__ ((unused));
 static void printBucketSizes(Hashtable *hashtable, int buckets) {
 	int i;
 	int *sizes = hashtable->getBucketSizes(hashtable);
