@@ -40,7 +40,7 @@ $(TEST_PARSERS):
 	$(CC) -o $@.so $@.o -shared
 	
 clean:
-	rm -rf $(OBJECTS) $(TESTS) $(TARGET)
+	rm -rf $(OBJECTS) $(TESTS) $(TARGET) $(TEST_PARSERS_SRC:.c=.so)
 	rm -f tests/tests.log
 
 .PHONY: all dev tests 

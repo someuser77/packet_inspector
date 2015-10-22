@@ -7,31 +7,31 @@
 #include "parser.h" 
 #include "parser_repository.h"
 
-static char* ParseEthermetHeader(const unsigned char * const buffer, size_t size) {
+static char* ParseEthermetHeader(const unsigned char __attribute__((__unused__)) * const buffer, size_t __attribute__((__unused__)) size) {
 	return "ETH";
 }
 
-static char* ParseIpHeader(const unsigned char * const buffer, size_t size) {
+static char* ParseIpHeader(const unsigned char __attribute__((__unused__)) * const buffer, size_t __attribute__((__unused__)) size) {
 	return "IP";
 }
 
-static char* ParseIp6Header(const unsigned char * const buffer, size_t size) {
+static char* ParseIp6Header(const unsigned char __attribute__((__unused__)) * const buffer, size_t __attribute__((__unused__)) size) {
 	return "IPv6";
 }
 
-static char* ParseTcpHeader(const unsigned char * const buffer, size_t size) {
+static char* ParseTcpHeader(const unsigned char __attribute__((__unused__)) * const buffer, size_t __attribute__((__unused__)) size) {
 	return "TCP";
 }
 
-static char* ParseUdpHeader(const unsigned char * const buffer, size_t size) {
+static char* ParseUdpHeader(const unsigned char __attribute__((__unused__)) * const buffer, size_t __attribute__((__unused__)) size) {
 	return "UDP";
 }
 
-static char* ParseHttpHeader(const unsigned char * const buffer, size_t size) {
+static char* ParseHttpHeader(const unsigned char __attribute__((__unused__)) * const buffer, size_t __attribute__((__unused__)) size) {
 	return "HTTP";
 }
 
-static char* ParseFtpHeader(const unsigned char * const buffer, size_t size) {
+static char* ParseFtpHeader(const unsigned char __attribute__((__unused__)) * const buffer, size_t __attribute__((__unused__)) size) {
 	return "FTP";
 }
 

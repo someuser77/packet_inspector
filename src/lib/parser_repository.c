@@ -13,7 +13,7 @@ typedef struct ParserRepositoryImpl {
 	int handleCapacity;
 	int handleSize;
 	
-	Parser *eth;
+	Parser eth;
 	Hashtable *internet;
 	Hashtable *transport;
 	Hashtable *data;
@@ -21,6 +21,18 @@ typedef struct ParserRepositoryImpl {
 
 static ParserRepositoryImpl *impl(ParserRepository *self) {
 	return (ParserRepositoryImpl *)self->impl;
+}
+
+static Hashtable *internet(ParserRepository *self) {
+	return impl(self)->internet;
+}
+
+static Hashtable *transport(ParserRepository *self) {
+	return impl(self)->transport;
+}
+
+static Hashtable *data(ParserRepository *self) {
+	return impl(self)->data;
 }
 
 static void AddHandle(ParserRepository *self, void *handle) {
@@ -111,37 +123,65 @@ static bool populate(ParserRepository *self,  const char * const path) {
 	return true;
 }
 
-static bool registerEthParser(ParserRepository *self, Parser *parser) {
+static bool registerEthParser(ParserRepository *self, Parser parser) {
 	impl(self)->eth = parser;
 	return true;
 }
 
-static Parser *getEthParser(ParserRepository *self) {
+static Parser getEthParser(ParserRepository *self) {
 	return impl(self)->eth;
 }
 
-static bool registerInternetParser(ParserRepository *self, unsigned short etherType, Parser *parser) {
-	return false;
+static bool registerInternetParser(ParserRepository *self, unsigned short etherType, Parser parser) {
+	Hashtable *hashtable = internet(self);
+	hashtable->set(hashtable, etherType, parser);	
+	return true;
 }
 
-static Parser *getInternetParser(ParserRepository *self, unsigned short etherType) {
+static Parser getInternetParser(ParserRepository *self, unsigned short etherType) {
+	Hashtable *hashtable = internet(self);
+	Parser parser = NULL;
+	if (hashtable->tryGet(hashtable, etherType, (void **)&parser)) {
+		return parser;
+	}
 	return NULL;
 }
 
-static bool registerTransportParser(ParserRepository *self, unsigned char protocol, Parser *parser) {
-	return false;
+static bool registerTransportParser(ParserRepository *self, unsigned char protocol, Parser parser) {
+	Hashtable *hashtable = transport(self);
+	hashtable->set(hashtable, protocol, parser);	
+	return true;
 }
 
-static Parser *getTransportParser(ParserRepository *self, unsigned char protocol) {
+static Parser getTransportParser(ParserRepository *self, unsigned char protocol) {
+	Hashtable *hashtable = transport(self);
+	Parser parser = NULL;
+	if (hashtable->tryGet(hashtable, protocol, (void **)&parser)) {
+		return parser;
+	}
 	return NULL;
 }
 	
-
-static bool registerDataParser(ParserRepository *self, unsigned char protocol, unsigned short port, Parser *parser) {
-	return false;
+static int getDataKey(unsigned char protocol, unsigned short port) {
+	// same port won't have many protocols registered to it so the port is the least significant
+	// so different protocols on the same port will end in the same bucket
+	return (protocol << (sizeof(unsigned short) * 8)) | port;
 }
 
-static Parser *getDataParser(ParserRepository *self, unsigned char protocol, unsigned short port) {
+static bool registerDataParser(ParserRepository *self, unsigned char protocol, unsigned short port, Parser parser) {
+	Hashtable *hashtable = data(self);
+	int key = getDataKey(protocol, port);
+	hashtable->set(hashtable, key, parser);
+	return true;
+}
+
+static Parser getDataParser(ParserRepository *self, unsigned char protocol, unsigned short port) {
+	Hashtable *hashtable = data(self);
+	Parser parser = NULL;
+	int key = getDataKey(protocol, port);
+	if (hashtable->tryGet(hashtable, key, (void **)&parser)) {
+		return parser;
+	}
 	return NULL;
 }
 	
@@ -151,9 +191,9 @@ static	void destroy(ParserRepository *self) {
 		dlclose((*(impl(self)->handles))[i]);
 	}
 	
-	impl(repo)->internet->destroy(impl(repo)->internet);
-	impl(repo)->transport->destroy(impl(repo)->transport);
-	impl(repo)->data->destroy(impl(repo)->data);
+	internet(self)->destroy(internet(self));
+	transport(self)->destroy(transport(self));
+	data(self)->destroy(data(self));
 	
 	
 	free(impl(self)->handles);
@@ -162,15 +202,15 @@ static	void destroy(ParserRepository *self) {
 }
 
 
-static unsigned int etherTypeHash)(int key) {
+static unsigned int etherTypeHash(int key) {
 	return key % 16;
 }
 
-static unsigned int transportTypeHash)(int key) {
+static unsigned int transportTypeHash(int key) {
 	return key % 16;
 }
 
-static unsigned int dataTypeHash)(int key) {
+static unsigned int dataTypeHash(int key) {
 	return key % 16;
 }
 
@@ -184,8 +224,17 @@ ParserRepository *ParserRepository_Create() {
 	impl(repo)->handleSize = 0;
 	impl(repo)->eth = NULL;
 	impl(repo)->internet = Hashtable_Create(16, etherTypeHash);
+	if (internet(repo) == NULL) {
+		printf("INTERNET NULL!\n");
+	}
 	impl(repo)->transport = Hashtable_Create(16, transportTypeHash);
+	if (transport(repo) == NULL) {
+		printf("TRANSPORT NULL!\n");
+	}
 	impl(repo)->data = Hashtable_Create(16, dataTypeHash);	
+	if (data(repo) == NULL) {
+		printf("DATA NULL!\n");
+	}
 	
 	repo->registerEthParser = registerEthParser;
 	repo->registerInternetParser = registerInternetParser;
@@ -197,7 +246,6 @@ ParserRepository *ParserRepository_Create() {
 	repo->getDataParser = getDataParser;
 	repo->populate = populate;	
 	repo->destroy = destroy;
-	
 	
 	return repo;
 }
