@@ -71,6 +71,7 @@ int getTotalFilters(struct FilterExecuter *self) {
 	return impl(self)->totalFilters;
 }
 
+static struct ipv6hdr *getIp6Header(struct sk_buff *skb) __attribute__((unused));
 static struct ipv6hdr *getIp6Header(struct sk_buff *skb) {
 	int offset;
 	struct ipv6hdr _ipv6h, *ip6;
@@ -80,6 +81,7 @@ static struct ipv6hdr *getIp6Header(struct sk_buff *skb) {
 	return ip6;
 }
 
+static bool getIp6Protocol(struct sk_buff *skb, unsigned char *protocol) __attribute__((unused));
 static bool getIp6Protocol(struct sk_buff *skb, unsigned char *protocol) {
 	__be16 frag_off;
 	u8 nexthdr;
@@ -124,18 +126,32 @@ bool matchAll(struct FilterExecuter *self, struct sk_buff *skb) {
 	struct UdpFilterList *udpFilter = NULL;
 	
 	unsigned char ipProtocol;
-	skb_reset_mac_header(skb);
-	eth = eth_hdr(skb);
-	if (eth == NULL) {
-		klog_warn("SKB ETH header was null.");
-		return false;
-	}
 	
+	size_t offset = 0;
+	
+	eth = (struct ethhdr *)skb->data;
+	offset += sizeof(struct ethhdr);
+	/*
+	if (skb->pkt_type == PACKET_OUTGOING) {
+		// temporary fix for the fact PACKET_OUTGOING skb data is not set correctly.
+		
+	} else {		
+		skb_reset_mac_header(skb);
+		eth = eth_hdr(skb);
+		if (eth == NULL) {
+			klog_warn("SKB ETH header was null.");
+			return false;
+		}
+	}
+	*/
 	ITERATE_FILTERS(ethFilter, ethFilters(self), filters, eth);
 	
 	switch (ntohs(eth->h_proto)) {
 		case ETH_P_IP:
-			if ((ip = ip_hdr(skb)) == NULL){
+			//ip = ip_hdr(skb);
+			ip = (struct iphdr *)(skb->data + offset);
+			offset += sizeof(struct iphdr);
+			if (!ip){
 				klog_error("Protocol was IP but header was null.");
 				return false;
 			}
@@ -143,15 +159,27 @@ bool matchAll(struct FilterExecuter *self, struct sk_buff *skb) {
 			ipProtocol = ip->protocol;
 			break;
 		case ETH_P_IPV6:
-			if ((ip6 = getIp6Header(skb)) == NULL) {
+			//ip6 = getIp6Header(skb);
+			ip6 = (struct ipv6hdr *)(skb->data + offset);
+			offset += sizeof(struct ipv6hdr);
+			if (!ip6) {
 				klog_error("Protocol was IPv6 but header was null.");
 				return false;
 			}
 			ITERATE_FILTERS(ip6Filter, ip6Filters(self), filters, ip6);
+			if (ipv6_ext_hdr(ip6->nexthdr)) {
+				klog_error("Error extracting protocol from IPv6 packet.");
+				return false;
+			}
+			
+			ipProtocol = ip6->nexthdr;
+			
+			/*
 			if (!getIp6Protocol(skb, &ipProtocol)) {
 				klog_error("Error extracting protocol from IPv6 packet.");
 				return false;
 			}
+			*/
 			break;
 		default:
 			// only IP and IPv6 is currently supported.
@@ -161,7 +189,9 @@ bool matchAll(struct FilterExecuter *self, struct sk_buff *skb) {
 	
 	switch (ipProtocol) {
 		case IPPROTO_TCP:
-			if ((tcp = (struct tcphdr *)skb_transport_header(skb)) == NULL) {
+			//tcp = (struct tcphdr *)skb_transport_header(skb);
+			tcp = (struct tcphdr *)(skb->data + offset);
+			if (!tcp) {
 				klog_error("Protocol was TCP but header was null.");
 				return false;
 			}
@@ -171,7 +201,9 @@ bool matchAll(struct FilterExecuter *self, struct sk_buff *skb) {
 			ITERATE_FILTERS(tcpFilter, tcpFilters(self), filters, tcp);
 			break;
 		case IPPROTO_UDP:
-			if ((udp = (struct udphdr *)skb_transport_header(skb)) == NULL) {
+			//udp = (struct udphdr *)skb_transport_header(skb);
+			udp = (struct udphdr *)(skb->data + offset);
+			if (!udp) {
 				klog_error("Protocol was UDP but header was null.");
 				return false;
 			}

@@ -281,16 +281,35 @@ int packet_interceptor(struct sk_buff *skb,  struct net_device *dev,  struct pac
 	if (skb->pkt_type == PACKET_LOOPBACK) {
 		klog_info("Dropped loopback packet.");
 		goto unlock_and_free_skb;
-	} else 
+	}
+	
 	if (skb->pkt_type == PACKET_HOST) {
 		// the ethernet header is missing on host packets.
+	}
+	
+	if (skb->pkt_type == PACKET_OUTGOING) {
+		//print_ethernet_header((struct ethhdr *)skb->data);
+		//skb_push(skb, skb_network_offset(skb));
+		//skb_push(skb, ETH_HLEN);
+		
+		// this fixed mac_len but everything else is still broken.
+		skb_set_mac_header(skb, 0);
+		skb_set_network_header(skb, ETH_HLEN);
+		skb_reset_mac_len(skb);
+		//skb_push(skb, ETH_HLEN);
+		
+		//skb_reset_mac_header(skb);
+		//skb_reset_mac_len(skb);
+		//skb_push(skb, ETH_HLEN);
+		//skb_pull(skb, ETH_HLEN);
+		//skb_reset_mac_header(skb);
 	}
 	
 	if (skb_mac_header(skb) < skb->head) {
 		klog_error("BAD MAC HDR: skb_mac_header(skb) < skb->head");
 	} else
 	if (skb_mac_header(skb) + ETH_HLEN > skb->data)
-		klog_error("BAD MAC HDR: skb_mac_header(skb) + ETH_HLEN > skb->data");
+		klog_error("Bad mac header on %s mac_len: %d nohdr: %d skb_mac_header(skb) + ETH_HLEN > skb->data", getPacketTypeDescription(skb->pkt_type), skb->mac_len, skb->nohdr);
 	
 	//skb_reset_mac_header(skb);
 	//print_ethernet_header(eth_hdr(skb));
@@ -313,7 +332,7 @@ int packet_interceptor(struct sk_buff *skb,  struct net_device *dev,  struct pac
 	
 	
 	if (!match) {
-		klog_info("Didn't match %s packet size %d.",  getPacketTypeDescription(skb->pkt_type), skb->len);
+		klog_info("Didn't match %s packet size %d mac_len %d.",  getPacketTypeDescription(skb->pkt_type), skb->len, skb->mac_len);
 		goto unlock_and_free_skb;
 	}
 	
