@@ -1,6 +1,8 @@
  #ifndef _PARSER_H_
  #define _PARSER_H_
  
+ #include <stdbool.h>
+ 
 static const char * const InitFunctionName = "InitParser";
  
 typedef struct ParserRepository ParserRepository;

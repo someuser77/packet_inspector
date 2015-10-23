@@ -2,7 +2,7 @@ CFLAGS=-g -Wall -Wextra -Isrc/lib -Isrc/modules $(OPTFLAGS)
 LIBS=-ldl
 
 # all .c files in source and below
-SOURCES=$(filter-out $(wildcard src/modules/*.c src/modules/**/*.c src/$(TARGET).c), $(wildcard src/**/*.c src/*.c))
+SOURCES=$(filter-out $(wildcard src/modules/*.c src/modules/**/*.c src/$(TARGET).c src/parsers/*.c), $(wildcard src/**/*.c src/*.c))
 SOURCES += src/modules/packet_filter.c
 OBJECTS=$(SOURCES:.c=.o)
 PARSERS_SRC=$(wildcard src/parsers/*.c)
@@ -38,11 +38,12 @@ $(TESTS):
 	$(CC) $(CFLAGS) $(OBJECTS) $@.c -o $@ $(LIBS)
 
 $(TEST_PARSERS) $(PARSERS):
-	$(CC) -c $(CFLAGS) src/lib/parser_repository.o $@.c -o $@.o -fpic $(LIBS)
+	$(CC) -c $(CFLAGS) $@.c -o $@.o -fpic $(LIBS)
 	$(CC) -o $@.so $@.o -shared
 	
 clean:
-	rm -rf $(OBJECTS) $(TESTS) $(TARGET) $(TEST_PARSERS_SRC:.c=.so) $(PARSERS_SRC:.c=.so)
+	rm -rf $(OBJECTS) $(TESTS) $(TARGET) $(TEST_PARSERS_SRC:.c=.o) $(TEST_PARSERS_SRC:.c=.so) $(PARSERS_SRC:.c=.so) $(PARSERS_SRC:.c=.o)
 	rm -f tests/tests.log
 	rm -rf parsers
+	
 .PHONY: all dev tests 

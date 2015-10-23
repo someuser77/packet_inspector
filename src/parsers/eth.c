@@ -1,6 +1,5 @@
 #include <stdlib.h>
 #include <stdio.h>
-#include <stdbool.h>
 #include <netinet/in.h>
 #include <linux/if_ether.h>
 #include <netinet/ether.h>
@@ -30,29 +29,31 @@ static char* getMacString(const struct ether_addr *addr, char *buf) {
     return buf;
 }
 
-static char* ParseEthermetHeader(const unsigned char * const buffer, size_t size) {
+static char* parseEthermetHeader(const unsigned char * const buffer, size_t size) {
 	if (size < sizeof(struct ethhdr)) {
 		return "Unable to parse Eth header. Header size was too small.";
 	}
-	char dst[ETH_ALEN * 2 + 5 + 1],  src[ETH_ALEN * 2 + 5 + 1];
+	const int MAC_ADDRESS_CHAR_LENGTH = ETH_ALEN * 2 + 5 + 1;
+	char dst[MAC_ADDRESS_CHAR_LENGTH],  src[MAC_ADDRESS_CHAR_LENGTH];
 	struct ethhdr *eth = (struct ethhdr *)buffer;
 	char *result = "";
 	unsigned short proto = ntohs(eth->h_proto);
 	
 	if (asprintf(&result, "[Ethernet Header]\n"
-			"Destination MAC: %s \n"
-			"Source MAC: %s \n"
+			"\tDestination MAC: %s\t"
+			"Source MAC: %s\t"
 			"Protocol: %s %u 0x%04x\n",
 			getMacString((struct ether_addr *)&(eth->h_dest), dst),
 			getMacString((struct ether_addr *)&(eth->h_source), src),
 			getEtherType(proto), proto, proto
 		) == -1) {
 			return "Error allocating memory for output of ethhdr.";
-		}
+	}
+	
 	return result;
 }
 
 bool InitParser(ParserRepository *repo) {
-	repo->registerEthParser(repo, ParseEthermetHeader);
+	repo->registerEthParser(repo, parseEthermetHeader);
 	return true;
 }
