@@ -71,7 +71,6 @@ int getTotalFilters(struct FilterExecuter *self) {
 	return impl(self)->totalFilters;
 }
 
-static struct ipv6hdr *getIp6Header(struct sk_buff *skb) __attribute__((unused));
 static struct ipv6hdr *getIp6Header(struct sk_buff *skb) {
 	int offset;
 	struct ipv6hdr _ipv6h, *ip6;
@@ -111,6 +110,39 @@ list_for_each_entry(pos, head, member) {							\
 			} 																				\
 	} while (0)																						
 
+static struct ethhdr *getEthhdrByOffset(struct sk_buff *skb, size_t offset) {
+	return (struct ethhdr *)(skb->data + offset);
+}
+
+static struct ethhdr *getEthhdrByFunction(struct sk_buff *skb, __attribute__((unused)) size_t offset) {
+	return eth_hdr(skb);
+}
+
+static struct iphdr *getIphdrByOffset(struct sk_buff *skb, size_t offset) {
+	return (struct iphdr *)(skb->data + offset);
+}
+
+static struct iphdr *getIphdrByFunction(struct sk_buff *skb, __attribute__((unused)) size_t offset) {
+	return ip_hdr(skb);
+}
+
+static struct ipv6hdr *getIpv6hdrByOffset(struct sk_buff *skb, size_t offset) {
+	return (struct ipv6hdr *)(skb->data + offset);
+}
+
+static struct ipv6hdr *getIpv6hdrByFunction(struct sk_buff *skb, __attribute__((unused)) size_t offset) {
+	return getIp6Header(skb);
+}
+
+static unsigned char *getTransporthdrByOffset(struct sk_buff *skb, size_t offset) {
+	return skb->data + offset;
+}
+
+static unsigned char *getTransporthdrByFunction(struct sk_buff *skb, __attribute__((unused)) size_t offset) {
+	return skb_transport_header(skb);
+}
+
+
 bool matchAll(struct FilterExecuter *self, struct sk_buff *skb) {
 	struct ethhdr *eth;
 	struct tcphdr *tcp;
@@ -129,7 +161,28 @@ bool matchAll(struct FilterExecuter *self, struct sk_buff *skb) {
 	
 	size_t offset = 0;
 	
-	eth = (struct ethhdr *)skb->data;
+	struct ethhdr *(*getEthhdr)(struct sk_buff *skb, size_t offset);
+	struct iphdr *(*getIphdr)(struct sk_buff *skb, size_t offset);
+	struct ipv6hdr *(*getIpv6hdr)(struct sk_buff *skb, size_t offset);
+	unsigned char *(*getTransporthdr)(struct sk_buff *skb, size_t offset);
+	
+	if (skb->pkt_type != PACKET_OUTGOING) {
+		getEthhdr = getEthhdrByFunction;
+		getIphdr = getIphdrByFunction;
+		getIpv6hdr = getIpv6hdrByFunction;
+		getTransporthdr = getTransporthdrByFunction;
+		skb_push(skb, ETH_HLEN);
+		skb_reset_mac_header(skb);
+	} else {
+		getEthhdr = getEthhdrByOffset;
+		getIphdr = getIphdrByOffset;
+		getIpv6hdr = getIpv6hdrByOffset;
+		getTransporthdr = getTransporthdrByOffset;
+	}
+	
+	
+	eth = getEthhdr(skb, offset);
+	//eth = (struct ethhdr *)skb->data;
 	offset += sizeof(struct ethhdr);
 	/*
 	if (skb->pkt_type == PACKET_OUTGOING) {
@@ -144,23 +197,29 @@ bool matchAll(struct FilterExecuter *self, struct sk_buff *skb) {
 		}
 	}
 	*/
+	klog_info("SKB: Head %p Data %p", skb->head, skb->data);
+	klog_info("Src: %pM Dst: %pM Proto: %04x", eth->h_source, eth->h_dest, ntohs(eth->h_proto));
+	
 	ITERATE_FILTERS(ethFilter, ethFilters(self), filters, eth);
 	
 	switch (ntohs(eth->h_proto)) {
 		case ETH_P_IP:
 			//ip = ip_hdr(skb);
-			ip = (struct iphdr *)(skb->data + offset);
+			//ip = (struct iphdr *)(skb->data + offset);
+			ip = getIphdr(skb, offset);
 			offset += sizeof(struct iphdr);
 			if (!ip){
 				klog_error("Protocol was IP but header was null.");
 				return false;
 			}
+			klog_info("Src: %pI4 Dst: %pI4: Proto: %u", &ip->saddr, &ip->daddr, ip->protocol);
 			ITERATE_FILTERS(ipFilter, ipFilters(self), filters, ip);
 			ipProtocol = ip->protocol;
 			break;
 		case ETH_P_IPV6:
 			//ip6 = getIp6Header(skb);
-			ip6 = (struct ipv6hdr *)(skb->data + offset);
+			//ip6 = (struct ipv6hdr *)(skb->data + offset);
+			ip6 = getIpv6hdr(skb, offset);
 			offset += sizeof(struct ipv6hdr);
 			if (!ip6) {
 				klog_error("Protocol was IPv6 but header was null.");
@@ -190,7 +249,8 @@ bool matchAll(struct FilterExecuter *self, struct sk_buff *skb) {
 	switch (ipProtocol) {
 		case IPPROTO_TCP:
 			//tcp = (struct tcphdr *)skb_transport_header(skb);
-			tcp = (struct tcphdr *)(skb->data + offset);
+			//tcp = (struct tcphdr *)(skb->data + offset);
+			tcp = (struct tcphdr *)getTransporthdr(skb, offset);
 			if (!tcp) {
 				klog_error("Protocol was TCP but header was null.");
 				return false;
@@ -202,7 +262,8 @@ bool matchAll(struct FilterExecuter *self, struct sk_buff *skb) {
 			break;
 		case IPPROTO_UDP:
 			//udp = (struct udphdr *)skb_transport_header(skb);
-			udp = (struct udphdr *)(skb->data + offset);
+			//udp = (struct udphdr *)(skb->data + offset);
+			udp = (struct udphdr *)getTransporthdr(skb, offset);
 			if (!udp) {
 				klog_error("Protocol was UDP but header was null.");
 				return false;
@@ -220,6 +281,10 @@ bool matchAll(struct FilterExecuter *self, struct sk_buff *skb) {
 	//klog_info("Inside Match All... Packet Protocol was: %04X", ntohs(skb->protocol));
 	
 	//klog_info("Filters matched: %d out of %d.", matchedFilters, getTotalFilters(self));
+	
+	if (skb->pkt_type != PACKET_OUTGOING) {
+		//skb_pull(skb, ETH_HLEN);
+	}
 	
 	return matchedFilters == getTotalFilters(self);
 }
