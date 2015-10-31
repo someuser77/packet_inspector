@@ -150,6 +150,7 @@ bool matchAll(struct FilterExecuter *self, struct sk_buff *skb) {
 	struct iphdr *ip;
 	struct ipv6hdr *ip6;
 	int matchedFilters = 0;
+	bool isIpProtocol = false;
 	
 	struct EthFilterList *ethFilter = NULL;
 	struct IpFilterList *ipFilter = NULL;
@@ -215,6 +216,7 @@ bool matchAll(struct FilterExecuter *self, struct sk_buff *skb) {
 			klog_info("Src: %pI4 Dst: %pI4: Proto: %u", &ip->saddr, &ip->daddr, ip->protocol);
 			ITERATE_FILTERS(ipFilter, ipFilters(self), filters, ip);
 			ipProtocol = ip->protocol;
+			isIpProtocol = true;
 			break;
 		case ETH_P_IPV6:
 			//ip6 = getIp6Header(skb);
@@ -232,7 +234,7 @@ bool matchAll(struct FilterExecuter *self, struct sk_buff *skb) {
 			}
 			
 			ipProtocol = ip6->nexthdr;
-			
+			isIpProtocol = true;
 			/*
 			if (!getIp6Protocol(skb, &ipProtocol)) {
 				klog_error("Error extracting protocol from IPv6 packet.");
@@ -240,41 +242,35 @@ bool matchAll(struct FilterExecuter *self, struct sk_buff *skb) {
 			}
 			*/
 			break;
-		default:
-			// only IP and IPv6 is currently supported.
-			klog_info("Packet was not IP/IPv6");
-			return false;
 	}
-	
-	switch (ipProtocol) {
-		case IPPROTO_TCP:
-			//tcp = (struct tcphdr *)skb_transport_header(skb);
-			//tcp = (struct tcphdr *)(skb->data + offset);
-			tcp = (struct tcphdr *)getTransporthdr(skb, offset);
-			if (!tcp) {
-				klog_error("Protocol was TCP but header was null.");
-				return false;
-			}
-			//klog_info("Iterating %s empty TCP Filters...", list_empty(tcpFilters(self)) ? "" : "non");
-			//klog_info("Got TCP packet with SRC port of %d", ntohs(tcp->source));
-			//klog_info("Got TCP packet with DST port of %d", ntohs(tcp->dest));
-			ITERATE_FILTERS(tcpFilter, tcpFilters(self), filters, tcp);
-			break;
-		case IPPROTO_UDP:
-			//udp = (struct udphdr *)skb_transport_header(skb);
-			//udp = (struct udphdr *)(skb->data + offset);
-			udp = (struct udphdr *)getTransporthdr(skb, offset);
-			if (!udp) {
-				klog_error("Protocol was UDP but header was null.");
-				return false;
-			}
-			ITERATE_FILTERS(udpFilter, udpFilters(self), filters, udp);
-			break;
-		default:
-			klog_info("Packet was not TCP/UDP");
-			return false;
+
+	if (isIpProtocol) {
+		switch (ipProtocol) {
+			case IPPROTO_TCP:
+				//tcp = (struct tcphdr *)skb_transport_header(skb);
+				//tcp = (struct tcphdr *)(skb->data + offset);
+				tcp = (struct tcphdr *)getTransporthdr(skb, offset);
+				if (!tcp) {
+					klog_error("Protocol was TCP but header was null.");
+					return false;
+				}
+				//klog_info("Iterating %s empty TCP Filters...", list_empty(tcpFilters(self)) ? "" : "non");
+				//klog_info("Got TCP packet with SRC port of %d", ntohs(tcp->source));
+				//klog_info("Got TCP packet with DST port of %d", ntohs(tcp->dest));
+				ITERATE_FILTERS(tcpFilter, tcpFilters(self), filters, tcp);
+				break;
+			case IPPROTO_UDP:
+				//udp = (struct udphdr *)skb_transport_header(skb);
+				//udp = (struct udphdr *)(skb->data + offset);
+				udp = (struct udphdr *)getTransporthdr(skb, offset);
+				if (!udp) {
+					klog_error("Protocol was UDP but header was null.");
+					return false;
+				}
+				ITERATE_FILTERS(udpFilter, udpFilters(self), filters, udp);
+				break;
+		}
 	}
-	
 	//unsigned char *data = skb_mac_header(skb);
 	//klog_info("%02x:%02x:%02x:%02x:%02x:%02x\n", eth->h_source[0], eth->h_source[1], eth->h_source[2], eth->h_source[3], eth->h_source[4], eth->h_source[5]);
 	
