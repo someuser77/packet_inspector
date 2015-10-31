@@ -39,8 +39,8 @@ static char* parseEthermetHeader(const unsigned char * const buffer, size_t size
 	char *result = "";
 	unsigned short proto = ntohs(eth->h_proto);
 	
-	if (asprintf(&result, "[Ethernet Header]\n"
-			"\tDestination MAC: %s\t"
+	if (asprintf(&result, "[Ethernet Header]\n\t"
+			"Destination MAC: %s\t"
 			"Source MAC: %s\t"
 			"Protocol: %s %u 0x%04x\n",
 			getMacString((struct ether_addr *)&(eth->h_dest), dst),
