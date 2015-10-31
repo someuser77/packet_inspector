@@ -211,7 +211,7 @@ void setShutdown(struct FilterOptions *self) {
 
 static int snprintf_wrap(char *buf, size_t size, struct FilterOptions *self) {
 	const char *format = "FilterOptions:\n"
-							"\tSHUTDOWN: %d srcMac: %d dstMac: %d srcIp: %d dstIp: %d srcIp6: %d dstIp: %d device: %d protocol: %d srcPort: %d dstPort: %d\n"
+							"\tSHUTDOWN: %d srcMac: %d dstMac: %d srcIp: %d dstIp: %d srcIp6: %d dstIp6: %d device: %d protocol: %d srcPort: %d dstPort: %d\n"
 							"\tsrcMac: %02x:%02x:%02x:%02x:%02x:%02x\n"
 							"\tdstMac: %02x:%02x:%02x:%02x:%02x:%02x\n"
 							"\tsrcIp: %d.%d.%d.%d\n"

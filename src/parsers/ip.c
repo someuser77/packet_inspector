@@ -18,8 +18,8 @@ static char* parseIpHeader(const unsigned char * const buffer, size_t size) {
 	struct iphdr *ip = (struct iphdr *)buffer;
 	char *result = "";
 
-	if (asprintf(&result, "[IP Header]\n"
-		"\tHeader Length: %u"
+	if (asprintf(&result, "[IP Header]\n\t"
+		" Header Length: %u"
 		" Version: %u"
 		" TOS: %u"
 		" Len: %u"
