@@ -21,14 +21,7 @@ MODULE_LICENSE("GPL");
 
 static const int NETLINK_USER = 31;
 
-int packet_interceptor(struct sk_buff *skb,  struct net_device *dev,  struct packet_type *pt, struct net_device *orig_dev);
-
-static struct packet_type pt = {
-	.type = htons(ETH_P_ALL), // cannot use ETH_P_IP because then skb will not hold ETH header.
-	.dev = NULL,
-	.func = packet_interceptor
-};
-static struct sock *nl_sk = NULL;
+static struct sock *netlinkSocket = NULL;
 static bool initialized = false;
 static bool promiscuitySet = false;
 DEFINE_SPINLOCK(packetProcessing);
@@ -36,10 +29,17 @@ static int pid;
 DEFINE_MUTEX(initializationLock);
 static FilterExecuter *executer = NULL;
 
-static void nl_recv_msg(struct sk_buff *skb);
-static struct netlink_kernel_cfg netlink_cfg = {
+static void netlinkReceiveMessage(struct sk_buff *skb);
+static struct netlink_kernel_cfg netlinkConfig = {
    .groups  = 1,
-   .input = nl_recv_msg,
+   .input = netlinkReceiveMessage,
+};
+
+int packet_interceptor(struct sk_buff *skb,  struct net_device *dev,  struct packet_type *pt, struct net_device *orig_dev);
+static struct packet_type packetType = {
+	.type = htons(ETH_P_ALL), // cannot use ETH_P_IP because then skb will not hold ETH header.
+	.dev = NULL,
+	.func = packet_interceptor
 };
 
 static void logContextInfo(void) __attribute__ ((unused));
@@ -121,7 +121,7 @@ static int sendResponseToClient(int pid, void *buffer, size_t length) {
 	NETLINK_CB(skb_out).dst_group = 0;
 	memcpy(nlmsg_data(nlh), buffer, length);
 	//klog_info("Sending %zu bytes of response to client...", length);
-	return nlmsg_unicast(nl_sk, skb_out, pid);	
+	return nlmsg_unicast(netlinkSocket, skb_out, pid);	
 }
 
 static int sendTextResponseToClient(int pid, char *response){
@@ -140,9 +140,8 @@ static int sendTextResponseToClient(int pid, char *response){
 
 static void initialize(struct FilterOptions *filterOptions) {	
 	executer = FilterExecuter_Create(filterOptions);
-	//memset(&pt, 0, sizeof(struct packet_type));
-	pt.dev = getConfiguredNetDevice(filterOptions);
-	dev_add_pack(&pt);
+	packetType.dev = getConfiguredNetDevice(filterOptions);
+	dev_add_pack(&packetType);
 	
 	klog_info("packet_device_filter added\n");
 	
@@ -164,19 +163,19 @@ static void shutdown(void) {
 	
 	spin_unlock(&packetProcessing);
 	
-	if (pt.dev != NULL) {
+	if (packetType.dev) {
 		
 		if (promiscuitySet) {
 			rtnl_lock();
-			dev_set_promiscuity(pt.dev, -1);
+			dev_set_promiscuity(packetType.dev, -1);
 			rtnl_unlock();
 		}
 		// dev_get_by_name was called so dev_put must be called.
-		dev_put(pt.dev);
+		dev_put(packetType.dev);
 		
 	}
 	
-	dev_remove_pack(&pt);
+	dev_remove_pack(&packetType);
 	
 	klog_info("packet_device_filter removed\n");
 	
@@ -207,7 +206,7 @@ static bool handleEdgeCases(FilterOptions *filterOptions, int pid){
 
 // http://linux-development-for-fresher.blogspot.co.il/2012/05/understanding-netlink-socket.html
 // http://binwaheed.blogspot.co.il/2010/08/after-reading-kernel-source-i-finally.html
-static void nl_recv_msg(struct sk_buff *skb) {
+static void netlinkReceiveMessage(struct sk_buff *skb) {
 	FilterOptions *filterOptions;
 	struct nlmsghdr *nlh;
 	int messagePid;
@@ -391,11 +390,11 @@ free_skb:
 }
 
 static int __init init_packet_device_filter_module(void) {
-	nl_sk = netlink_kernel_create(&init_net, NETLINK_USER, &netlink_cfg);
+	netlinkSocket = netlink_kernel_create(&init_net, NETLINK_USER, &netlinkConfig);
 
-    // nl_sk = netlink_kernel_create(&init_net, NETLINK_USER, 0, hello_nl_recv_msg,
+    // netlinkSocket = netlink_kernel_create(&init_net, NETLINK_USER, 0, hello_netlinkReceiveMessage,
     //                              NULL, THIS_MODULE);
-    if (nl_sk == NULL)
+    if (!netlinkSocket)
     {
         klog_error("Error creating socket.\n");
         return -1;
@@ -405,8 +404,8 @@ static int __init init_packet_device_filter_module(void) {
 }
 
 static void __exit cleanup_packet_device_filter_module(void) {
-	if (nl_sk != NULL) {
-		netlink_kernel_release(nl_sk);
+	if (netlinkSocket) {
+		netlink_kernel_release(netlinkSocket);
 	}
 }
 
