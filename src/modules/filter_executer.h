@@ -9,6 +9,7 @@ typedef struct FilterExecuter {
 	bool (*matchAll)(struct FilterExecuter *self, struct sk_buff *skb);
 	int (*getTotalFilters)(struct FilterExecuter *self);
 	void (*destroy)(struct FilterExecuter *self);
+	void (*setDebugPrint)(struct FilterExecuter *self, int debugPrint);
 } FilterExecuter;
 
 FilterExecuter *FilterExecuter_Create(FilterOptions *filterOptions);

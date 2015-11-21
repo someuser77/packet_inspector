@@ -36,6 +36,7 @@ typedef struct FilterExecuterImpl {
 	struct list_head tcp;
 	struct list_head udp;
 	int totalFilters;
+	int debugPrint;
 } FilterExecuterImpl;
 
 static inline FilterExecuterImpl *impl(FilterExecuter *self) {
@@ -142,6 +143,9 @@ static unsigned char *getTransporthdrByFunction(struct sk_buff *skb, __attribute
 	return skb_transport_header(skb);
 }
 
+void setDebugPrint(struct FilterExecuter *self, int debugPrint) {
+	impl(self)->debugPrint = debugPrint;
+}
 
 bool matchAll(struct FilterExecuter *self, struct sk_buff *skb) {
 	struct ethhdr *eth;
@@ -151,6 +155,7 @@ bool matchAll(struct FilterExecuter *self, struct sk_buff *skb) {
 	struct ipv6hdr *ip6;
 	int matchedFilters = 0;
 	bool isIpProtocol = false;
+	int debugPrint = impl(self)->debugPrint;
 	
 	struct EthFilterList *ethFilter = NULL;
 	struct IpFilterList *ipFilter = NULL;
@@ -161,7 +166,7 @@ bool matchAll(struct FilterExecuter *self, struct sk_buff *skb) {
 	unsigned char ipProtocol;
 	
 	size_t offset = 0;
-	
+		
 	struct ethhdr *(*getEthhdr)(struct sk_buff *skb, size_t offset);
 	struct iphdr *(*getIphdr)(struct sk_buff *skb, size_t offset);
 	struct ipv6hdr *(*getIpv6hdr)(struct sk_buff *skb, size_t offset);
@@ -198,8 +203,10 @@ bool matchAll(struct FilterExecuter *self, struct sk_buff *skb) {
 		}
 	}
 	*/
-	klog_info("SKB: Head %p Data %p", skb->head, skb->data);
-	klog_info("Src: %pM Dst: %pM Proto: %04x", eth->h_source, eth->h_dest, ntohs(eth->h_proto));
+	if (debugPrint) {
+		klog_info("SKB: Head %p Data %p", skb->head, skb->data);
+		klog_info("Src: %pM Dst: %pM Proto: %04x", eth->h_source, eth->h_dest, ntohs(eth->h_proto));
+	}
 	
 	ITERATE_FILTERS(ethFilter, ethFilters(self), filters, eth);
 	
@@ -213,7 +220,7 @@ bool matchAll(struct FilterExecuter *self, struct sk_buff *skb) {
 				klog_error("Protocol was IP but header was null.");
 				return false;
 			}
-			klog_info("Src: %pI4 Dst: %pI4: Proto: %u", &ip->saddr, &ip->daddr, ip->protocol);
+			if (debugPrint) klog_info("Src: %pI4 Dst: %pI4: Proto: %u", &ip->saddr, &ip->daddr, ip->protocol);
 			ITERATE_FILTERS(ipFilter, ipFilters(self), filters, ip);
 			ipProtocol = ip->protocol;
 			isIpProtocol = true;
@@ -289,6 +296,7 @@ FilterExecuter *FilterExecuter_Create(FilterOptions *filterOptions) {
 	FilterExecuter *result = (FilterExecuter *)vzalloc(sizeof(FilterExecuter));
 	FilterExecuterImpl *impl = (FilterExecuterImpl *)vzalloc(sizeof(FilterExecuterImpl));
 	impl->totalFilters = 0;
+	impl->debugPrint = 0;
 	
 	INIT_LIST_HEAD(&impl->eth);
 	INIT_LIST_HEAD(&impl->ip);
@@ -381,5 +389,6 @@ FilterExecuter *FilterExecuter_Create(FilterOptions *filterOptions) {
 	result->matchAll = matchAll;
 	result->impl = impl;
 	result->destroy = destroy;
+	result->setDebugPrint = setDebugPrint;
 	return result;
 }

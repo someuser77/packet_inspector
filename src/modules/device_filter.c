@@ -8,6 +8,8 @@
 #include <linux/if_arp.h>
 #include <linux/mutex.h>
 #include <linux/spinlock.h>
+#include <linux/moduleparam.h> // for module parameters.
+#include <linux/stat.h> // for S_IRUGO
 
 #define MODULE_NAME "packet_device_filter"
 
@@ -20,6 +22,10 @@
 MODULE_LICENSE("GPL");
 
 static const int NETLINK_USER = 31;
+
+static int debugPrint = 0;
+module_param(debugPrint, int, S_IRUGO);
+MODULE_PARM_DESC(debugPrint, "Should debug information be printed to dmesg.");
 
 static struct sock *netlinkSocket = NULL;
 static bool initialized = false;
@@ -127,7 +133,8 @@ static int sendResponseToClient(int pid, void *buffer, size_t length) {
 static int sendTextResponseToClient(int pid, char *response){
 	int sendResult;
 	
-	klog_info("%s", response);
+	if (debugPrint)
+		klog_info("%s", response);
 	
 	sendResult = sendResponseToClient(pid, response, strlen(response));
 	
@@ -144,6 +151,9 @@ static void initialize(struct FilterOptions *filterOptions) {
 	dev_add_pack(&packetType);
 	
 	klog_info("packet_device_filter added\n");
+	
+	if (debugPrint)
+		executer->setDebugPrint(executer, debugPrint);
 	
 	sendTextResponseToClient(pid, "ok");	
 	klog_info("Sending is now enabled!");	
@@ -213,13 +223,15 @@ static void netlinkReceiveMessage(struct sk_buff *skb) {
 	
 	nlh = (struct nlmsghdr *)skb->data;
 	messagePid	= nlh->nlmsg_pid;
-	klog_info("got a message from Client: %d. Message Length: %d Data Length: %d.", messagePid, nlh->nlmsg_len, nlh->nlmsg_len - NLMSG_HDRLEN);
+	if (debugPrint)
+		klog_info("got a message from Client: %d. Message Length: %d Data Length: %d.", messagePid, nlh->nlmsg_len, nlh->nlmsg_len - NLMSG_HDRLEN);
 	
 	//logContextInfo();
 	
 	filterOptions = FilterOptions_Deserialize(NLMSG_DATA(nlh), NLMSG_PAYLOAD(nlh,0));
 	
-	klog_info("FilterOptions were: %s", filterOptions->description(filterOptions));
+	if (debugPrint)
+		klog_info("FilterOptions were: %s", filterOptions->description(filterOptions));
 	
 	mutex_lock(&initializationLock);
 	
@@ -314,11 +326,13 @@ int packet_interceptor(struct sk_buff *skb,  struct net_device *dev,  struct pac
 	}
 	
 	if (skb_mac_header(skbc) < skbc->head) {
-		klog_error("BAD MAC HDR: skb_mac_header(skb) < skb->head");
-	} else
-	if (skb_mac_header(skbc) + ETH_HLEN > skbc->data)
-		klog_error("Bad mac header on %s mac_len: %d nohdr: %d skb_mac_header(skb) + ETH_HLEN > skb->data", getPacketTypeDescription(skbc->pkt_type), skbc->mac_len, skbc->nohdr);
-	
+		if (debugPrint)
+			klog_error("BAD MAC HDR: skb_mac_header(skb) < skb->head");
+	} else {
+		if (skb_mac_header(skbc) + ETH_HLEN > skbc->data)
+			if (debugPrint)
+				klog_error("Bad mac header on %s mac_len: %d nohdr: %d skb_mac_header(skb) + ETH_HLEN > skb->data", getPacketTypeDescription(skbc->pkt_type), skbc->mac_len, skbc->nohdr);
+	}
 	//skb_reset_mac_header(skb);
 	//print_ethernet_header(eth_hdr(skb));
 	
@@ -340,19 +354,21 @@ int packet_interceptor(struct sk_buff *skb,  struct net_device *dev,  struct pac
 	
 	
 	if (!match) {
-		klog_info("Didn't match %s packet size %d mac_len %d.",  getPacketTypeDescription(skbc->pkt_type), skbc->len, skbc->mac_len);
+		if (debugPrint)
+			klog_info("Didn't match %s packet size %d mac_len %d.",  getPacketTypeDescription(skbc->pkt_type), skbc->len, skbc->mac_len);
 		goto unlock_and_free_skb;
 	}
 	
 	length = skbc->len;
-
-	klog_info(
-		"Matched a %s packet going [%d:%s]. Length: %zu.", 
-		skb_is_nonlinear(skbc) ? "nonlinear" : "linear",
-		skbc->pkt_type, 
-		getPacketTypeDescription(skbc->pkt_type),
-		length
-	);
+	
+	if (debugPrint)
+		klog_info(
+			"Matched a %s packet going [%d:%s]. Length: %zu.", 
+			skb_is_nonlinear(skbc) ? "nonlinear" : "linear",
+			skbc->pkt_type, 
+			getPacketTypeDescription(skbc->pkt_type),
+			length
+		);
 	
 	//logContextInfo();
 	
@@ -368,7 +384,8 @@ int packet_interceptor(struct sk_buff *skb,  struct net_device *dev,  struct pac
 		goto free_buffer_unlock_and_free_skb;
 	}
 	
-	klog_info("First byte of data to client is: %02X", buffer[0]);
+	if (debugPrint)
+		klog_info("First byte of data to client is: %02X", buffer[0]);
 	
 	res = sendResponseToClient(pid, buffer, length);
 	
