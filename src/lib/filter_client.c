@@ -254,7 +254,9 @@ static unsigned char *handleIncomingPacket(struct FilterClient *self, size_t *si
 	struct msghdr msg;
 	unsigned char *buffer;
 	ssize_t length;
+	ssize_t received;
 	
+receive:
 	memset(&msg, 0, sizeof(struct msghdr));
 	
 	netlinkMessageHeader = createNetlinkMessageHeader(MAX_PAYLOAD);
@@ -265,11 +267,33 @@ static unsigned char *handleIncomingPacket(struct FilterClient *self, size_t *si
 	
 	fillMsgHdr(self, &msg);
 	
-	recvmsg(getSocket(self), &msg, 0);
+	received = recvmsg(getSocket(self), &msg, 0);
 	
-	length = netlinkMessageHeader->nlmsg_len - NLMSG_HDRLEN;
+	if (received == -1) {
+		perror("recvmsg()");
+		goto receive;
+	}
+	
+	if (received == 0) {
+		// shutdown
+		printf("Got 0 bytes. Quitting.");
+		return NULL;
+	}
+	
+	if (netlinkMessageHeader->nlmsg_len < NLMSG_HDRLEN) {
+		printf("Message length %zd was shorter than NLMSG_HDRLEN %zd.\n", netlinkMessageHeader->nlmsg_len, NLMSG_HDRLEN);
+		goto receive;
+	}
+	
+	length =  netlinkMessageHeader->nlmsg_len - NLMSG_HDRLEN;
+	
+	printf("\nTrying to read %zd bytes...\n", length);
 	
 	buffer = (unsigned char *)malloc(length);
+	if (!buffer) {
+		printf("Error allocating %zd bytes for incoming packet.", length);
+		return NULL;
+	}
 	
 	memcpy(buffer, NLMSG_DATA(netlinkMessageHeader), length);
 	

@@ -118,7 +118,7 @@ static int sendResponseToClient(int pid, void *buffer, size_t length) {
 	struct nlmsghdr *nlh;
 	struct sk_buff *skb_out = nlmsg_new(length, 0);
 	
-	if (skb_out == NULL) {
+	if (!skb_out) {
 		klog_error("Failed to allocate new skb");
         return -1;
 	}
@@ -126,7 +126,10 @@ static int sendResponseToClient(int pid, void *buffer, size_t length) {
 	nlh = nlmsg_put(skb_out, 0, 0, NLMSG_DONE, length, 0);
 	NETLINK_CB(skb_out).dst_group = 0;
 	memcpy(nlmsg_data(nlh), buffer, length);
-	//klog_info("Sending %zu bytes of response to client...", length);
+	
+	if (debugPrint)
+		klog_info("Sending %zu bytes of response to client...", length);
+	
 	return nlmsg_unicast(netlinkSocket, skb_out, pid);	
 }
 
@@ -160,15 +163,23 @@ static void initialize(struct FilterOptions *filterOptions) {
 	initialized = true;
 }
 
-static void shutdown(void) {
+static void shutdown(bool clientInitiatedShutdown) {
+	
+	if (!initialized)
+		return;
 
-	sendTextResponseToClient(pid, "shutdown");
+	if (clientInitiatedShutdown)
+		sendTextResponseToClient(pid, "shutdown");
+	
 	klog_info("Shutting down!");
 	
 	spin_lock(&packetProcessing);
 	
 	initialized = false;
-	executer->destroy(executer);
+	if (clientInitiatedShutdown) {
+		// yes this is a leak, but its better to leak than to hang for now.
+		executer->destroy(executer);
+	}
 	executer = NULL;
 	
 	spin_unlock(&packetProcessing);
@@ -246,7 +257,7 @@ static void netlinkReceiveMessage(struct sk_buff *skb) {
 		
 	} else {
 		
-		shutdown();
+		shutdown(true);
 		
 	}
 
@@ -421,6 +432,7 @@ static int __init init_packet_device_filter_module(void) {
 }
 
 static void __exit cleanup_packet_device_filter_module(void) {
+	shutdown(false);
 	if (netlinkSocket) {
 		netlink_kernel_release(netlinkSocket);
 	}
