@@ -36,7 +36,7 @@ typedef struct {
 	uint16_t dstPort;
 } FilterOptionsImpl;
 
-inline FilterOptionsImpl* impl(FilterOptions *self) {
+static inline FilterOptionsImpl* impl(FilterOptions *self) {
 	return (FilterOptionsImpl *)self->FilterOptionsImpl;
 }
 
@@ -267,6 +267,131 @@ size_t serialize(struct FilterOptions *self, unsigned char *buffer, size_t size)
 	return sizeof(FilterOptionsImpl);
 }
 
+bool equals(struct FilterOptions *self, struct FilterOptions *other) {
+	unsigned char mac1[ETH_ALEN] = {0};
+	unsigned char mac2[ETH_ALEN] = {0};
+	unsigned char addr1[IP6_ALEN] = {0};
+	unsigned char addr2[IP6_ALEN] = {0};
+	char device1[IFNAMSIZ] = {0};
+	char device2[IFNAMSIZ] = {0};
+	bool set;
+	
+	if (other == NULL) 
+		return false;
+	
+	if (self == other) 
+		return true;
+	
+	if (self->isEmpty(self) != other->isEmpty(other))
+		return false;
+	
+	if ((set = self->isSrcMacSet(self)) != other->isSrcMacSet(other))
+		return false;
+	
+	if (set) {
+		self->getSrcMac(self, mac1);
+		other->getSrcMac(other, mac2);
+		
+		if (memcmp(mac1, mac2, ETH_ALEN) != 0) 
+			return false;
+	}
+	
+	if ((set = self->isDstMacSet(self)) != other->isDstMacSet(other))
+		return false;
+	
+	if (set) {
+		self->getDstMac(self, mac1);
+		other->getDstMac(other, mac2);
+		
+		if (memcmp(mac1, mac2, ETH_ALEN) != 0) 
+			return false;
+	}
+	
+	if ((set = self->isSrcIpSet(self)) != other->isSrcIpSet(other))
+		return false;
+	
+	if (set) {
+		if (self->getSrcIp(self) != other->getSrcIp(other))
+			return false;
+	}
+	
+	if ((set = self->isDstIpSet(self)) != other->isDstIpSet(other))
+		return false;
+	
+	if (set) {		
+		if (self->getDstIp(self) != other->getDstIp(other))
+			return false;
+	}
+	
+	if ((set = self->isSrcIp6Set(self)) != other->isSrcIp6Set(other)) {
+		return false;
+	}
+	
+	if (set) {
+		self->getSrcIp6(self, addr1);
+		other->getSrcIp6(other, addr2);
+		
+		if (memcmp(addr1, addr2, IP6_ALEN) != 0)
+			return false;
+	}
+	
+	if ((set = self->isDstIp6Set(self)) != other->isDstIp6Set(other))
+		return false;
+	
+	if (set) {		
+		self->getDstIp6(self, addr1);
+		other->getDstIp6(other, addr2);
+		
+		if (memcmp(addr1, addr2, IP6_ALEN) != 0)
+			return false;
+	}
+	
+	if ((set = self->isDeviceSet(self)) != other->isDeviceSet(other))
+		return false;
+	
+	if (set) {
+		self->getDevice(self, device1);
+		self->getDevice(self, device2);
+	
+		if (strncmp(device1, device2, IFNAMSIZ) != 0)
+			return false;
+	}
+	
+	if ((set = self->isProtocolSet(self)) != other->isProtocolSet(other))
+		return false;
+	
+	if (set) {
+		if (self->getProtocol(self) != other->getProtocol(other))
+			return false;
+	}
+	
+	if ((set = self->isSrcPortSet(self)) != other->isSrcPortSet(other))
+		return false;
+	
+	if (set) {
+		if (self->getSrcPort(self) != other->getSrcPort(other))
+			return false;
+	}
+	
+	if ((set = self->isDstPortSet(self)) != other->isDstPortSet(other))
+		return false;
+	
+	if (set) {
+		if (self->getDstPort(self) != other->getDstPort(other))
+			return false;
+	}
+	
+	if ((set = self->isEtherTypeSet(self)) != other->isEtherTypeSet(other))
+		return false;
+	
+	if (set) {
+		if (self->getEtherType(self) != other->getEtherType(other))
+			return false;
+	}
+	
+	return true;
+}
+
 FilterOptions *FilterOptions_Create() {
 	
 	FilterOptions *filterOptions = (FilterOptions *)alloc(sizeof(FilterOptions));
@@ -336,6 +461,8 @@ FilterOptions *FilterOptions_Create() {
 	filterOptions->setShutdown = setShutdown;
 	
 	filterOptions->isEmpty = isEmpty;
+	
+	filterOptions->equals = equals;
 
 	return filterOptions;
 }
@@ -358,3 +485,4 @@ void FilterOptions_Destroy(FilterOptions **filterOptions) {
 	release(*filterOptions);
 	*filterOptions = NULL;
 }
+

@@ -175,6 +175,33 @@ char *test_FilterOptions_SetGetDstPort() {
 	return test_FilterOptions_SetGetPort(filterOptions->getDstPort, filterOptions->setDstPort, filterOptions, port);
 }
 
+static void FillFilterOptions(FilterOptions *filterOptions) {
+	unsigned char srcMac[ETH_ALEN] = {0x1, 0x2, 0x3, 0x4, 0x5, 0x6};
+	unsigned char dstMac[ETH_ALEN] = {0x6, 0x5, 0x4, 0x3, 0x2, 0x1};
+	uint32_t srcIp, dstIp;
+	unsigned char srcIp6[IP6_ALEN] = { 0x1, 0x2, 0x3, 0x4, 0x5, 0x6, 0x7, 0x8, 0x9, 0xa, 0xb, 0xc, 0xd, 0xe, 0xf };
+	unsigned char dstIp6[IP6_ALEN] = { 0xf, 0xe, 0xd, 0xc, 0xb, 0xa, 0x9, 0x8, 0x7, 0x6, 0x5, 0x4, 0x3, 0x2, 0x1 };	
+	
+	inet_pton(AF_INET, "192.0.2.33", &srcIp);
+	inet_pton(AF_INET, "192.0.2.34", &dstIp);
+	
+	filterOptions->setSrcMac(filterOptions, srcMac);
+	filterOptions->setDstMac(filterOptions, dstMac);
+	
+	filterOptions->setSrcIp(filterOptions, srcIp);
+	filterOptions->setDstIp(filterOptions, dstIp);
+	
+	filterOptions->setSrcIp6(filterOptions, srcIp6);
+	filterOptions->setDstIp6(filterOptions, dstIp6);
+	
+	filterOptions->setDevice(filterOptions, "MyDevice", 8);
+	
+	filterOptions->setProtocol(filterOptions, IPPROTO_TCP);
+	
+	filterOptions->setSrcPort(filterOptions, 123);
+	filterOptions->setDstPort(filterOptions, 65535);
+}
+
 char *test_FilterOptions_GetDescription() {
 	unsigned char srcMac[ETH_ALEN] = {0x1, 0x2, 0x3, 0x4, 0x5, 0x6};
 	unsigned char dstMac[ETH_ALEN] = {0x6, 0x5, 0x4, 0x3, 0x2, 0x1};
@@ -215,7 +242,6 @@ char *test_FilterOptions_GetDescription() {
 	filterOptions->setSrcPort(filterOptions, 123);
 	filterOptions->setDstPort(filterOptions, 65535);
 	
-	
 	char *description = filterOptions->description(filterOptions);
 	
 	//printf("%s\n", expected);
@@ -230,50 +256,17 @@ char *test_FilterOptions_GetDescription() {
 char *test_FilterOptions_Serialization() {
 	unsigned char *buffer;
 	size_t buffer_size;
-	FilterOptions *another;
-	char *firstDesc;
-	char *secondDesc;
-	unsigned char srcMac[ETH_ALEN] = {0x1, 0x2, 0x3, 0x4, 0x5, 0x6};
-	unsigned char dstMac[ETH_ALEN] = {0x6, 0x5, 0x4, 0x3, 0x2, 0x1};
-	uint32_t srcIp, dstIp;
-	unsigned char srcIp6[IP6_ALEN] = { 0x1, 0x2, 0x3, 0x4, 0x5, 0x6, 0x7, 0x8, 0x9, 0xa, 0xb, 0xc, 0xd, 0xe, 0xf };
-	unsigned char dstIp6[IP6_ALEN] = { 0xf, 0xe, 0xd, 0xc, 0xb, 0xa, 0x9, 0x8, 0x7, 0x6, 0x5, 0x4, 0x3, 0x2, 0x1 };	
+	FilterOptions *other;
 	
-	inet_pton(AF_INET, "192.0.2.33", &srcIp);
-	inet_pton(AF_INET, "192.0.2.34", &dstIp);
-	
-	filterOptions->setSrcMac(filterOptions, srcMac);
-	filterOptions->setDstMac(filterOptions, dstMac);
-	
-	filterOptions->setSrcIp(filterOptions, srcIp);
-	filterOptions->setDstIp(filterOptions, dstIp);
-	
-	filterOptions->setSrcIp6(filterOptions, srcIp6);
-	filterOptions->setDstIp6(filterOptions, dstIp6);
-	
-	filterOptions->setDevice(filterOptions, "MyDevice", 8);
-	
-	filterOptions->setProtocol(filterOptions, IPPROTO_TCP);
-	
-	filterOptions->setSrcPort(filterOptions, 123);
-	filterOptions->setDstPort(filterOptions, 65535);
+	FillFilterOptions(filterOptions);
 	
 	buffer_size = filterOptions->serialize(filterOptions, NULL, 0);
 	buffer = (unsigned char *)malloc(buffer_size);
 	filterOptions->serialize(filterOptions, buffer, buffer_size);
 	
+	other = FilterOptions_Deserialize(buffer, buffer_size);
 	
-	another = FilterOptions_Deserialize(buffer, buffer_size);
-	
-	firstDesc = filterOptions->description(filterOptions);
-	secondDesc = another->description(another);
-	//printf("%s\n", expected);
-	//printf("%s\n", description);
-	
-	mu_assert(strcmp(firstDesc, secondDesc) == 0, "Description of serialized and deserialized FilterOptions did not match.");
-	
-	free(firstDesc);
-	free(secondDesc);	
+	mu_assert(filterOptions->equals(filterOptions, other), "Serialized and deserialized FilterOptions did not match.");
 	
 	return NULL;
 }
@@ -299,6 +292,30 @@ char *test_FilterOptions_SetGetEtherType() {
 	
 	mu_assert(filterOptions->getEtherType(filterOptions) == etherType, "getEtherType returned wrong EtherType.");
 	
+	return NULL;
+}
+
+char *test_FilterOptions_EqualsNull() {
+	mu_assert(!filterOptions->equals(filterOptions, NULL), "Equals to null returned true.");
+	return NULL;
+}
+
+char *test_FilterOptions_EqualsSelf() {
+	mu_assert(filterOptions->equals(filterOptions, filterOptions), "Equals to self returned false.");
+	return NULL;
+}
+
+char *test_FilterOptions_EqualsAll() {
+	FilterOptions *other = FilterOptions_Create();
+	
+	FillFilterOptions(filterOptions);
+	
+	FillFilterOptions(other);
+	
+	mu_assert(filterOptions->equals(filterOptions, other), "The two filter options were different.");
+	mu_assert(other->equals(other, filterOptions), "Equals was not Symmetric.");
+	
+	FilterOptions_Destroy(&other);
 	return NULL;
 }
 
@@ -329,6 +346,9 @@ char *all_tests() {
 	mu_run_test(test_FilterOptions_SetGetShutdown);
 	mu_run_test(test_FilterOptions_TestEmpty);
 	mu_run_test(test_FilterOptions_SetGetEtherType);
+	mu_run_test(test_FilterOptions_EqualsNull);
+	mu_run_test(test_FilterOptions_EqualsSelf);
+	mu_run_test(test_FilterOptions_EqualsAll);
 	return NULL;
 }
 

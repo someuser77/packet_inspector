@@ -84,6 +84,8 @@ typedef struct FilterOptions {
 	
 	char* (*description)(struct FilterOptions *self);
 	
+	bool (*equals)(struct FilterOptions *self, struct FilterOptions *other);
+	
 	size_t (*serialize)(struct FilterOptions *self, unsigned char *buffer, size_t size);
 	
 } FilterOptions;
