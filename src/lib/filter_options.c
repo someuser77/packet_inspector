@@ -157,7 +157,7 @@ static int getDstIp6(struct FilterOptions *self, unsigned char addr[IP6_ALEN]) {
 	return 0;
 }
 
-int setDevice(struct FilterOptions *self, const char const *device, int len) {
+static int setDevice(struct FilterOptions *self, const char const *device, int len) {
 	if (len < 0) return -1;
 	set(self, DEVICE_SET_BIT);
 	if (len > IFNAMSIZ - 1) len = IFNAMSIZ - 1;
@@ -166,7 +166,7 @@ int setDevice(struct FilterOptions *self, const char const *device, int len) {
 	return len;
 }
 
-int getDevice(struct FilterOptions *self, char *device) {
+static int getDevice(struct FilterOptions *self, char *device) {
 	int len;
 	if (!isDeviceSet(self)) return -1;
 	len = strlen(impl(self)->device);
@@ -175,37 +175,37 @@ int getDevice(struct FilterOptions *self, char *device) {
 	return len;
 }
 
-bool setProtocol(struct FilterOptions *self, unsigned char protocol) {
+static bool setProtocol(struct FilterOptions *self, unsigned char protocol) {
 	set(self, PROTOCOL_SET_BIT);
 	impl(self)->protocol = protocol;
 	return true;
 }
 
-unsigned char getProtocol(struct FilterOptions *self) {
+static unsigned char getProtocol(struct FilterOptions *self) {
 	return impl(self)->protocol;
 }
 
-bool setSrcPort(struct FilterOptions *self, uint16_t port) {
+static bool setSrcPort(struct FilterOptions *self, uint16_t port) {
 	set(self, SRC_PORT_SET_BIT);
 	impl(self)->srcPort = port;
 	return true;
 }
 
-uint16_t getSrcPort(struct FilterOptions *self) {
+static uint16_t getSrcPort(struct FilterOptions *self) {
 	return impl(self)->srcPort;
 }
 	
-bool setDstPort(struct FilterOptions *self, uint16_t port) {
+static bool setDstPort(struct FilterOptions *self, uint16_t port) {
 	set(self, DST_PORT_SET_BIT);
 	impl(self)->dstPort = port;
 	return true;
 }
 
-uint16_t getDstPort(struct FilterOptions *self) {
+static uint16_t getDstPort(struct FilterOptions *self) {
 	return impl(self)->dstPort;
 }
 
-void setShutdown(struct FilterOptions *self) {
+static void setShutdown(struct FilterOptions *self) {
 	set(self, SHUTDOWN);
 }
 
@@ -239,7 +239,7 @@ static int snprintf_wrap(char *buf, size_t size, struct FilterOptions *self) {
 		impl(self)->dstPort);
 }
 
-char *getDescription(struct FilterOptions *self) {
+static char *getDescription(struct FilterOptions *self) {
 	char *result = NULL;
 	int length;
 	int expected_length = snprintf_wrap(NULL, 0, self);
@@ -261,13 +261,13 @@ char *getDescription(struct FilterOptions *self) {
 	return result;
 }
 
-size_t serialize(struct FilterOptions *self, unsigned char *buffer, size_t size) {
+static size_t serialize(struct FilterOptions *self, unsigned char *buffer, size_t size) {
 	if (size >= sizeof(FilterOptionsImpl) && buffer != NULL) 
 		memcpy(buffer, impl(self), sizeof(FilterOptionsImpl));
 	return sizeof(FilterOptionsImpl);
 }
 
-bool equals(struct FilterOptions *self, struct FilterOptions *other) {
+static bool equals(struct FilterOptions *self, struct FilterOptions *other) {
 	unsigned char mac1[ETH_ALEN] = {0};
 	unsigned char mac2[ETH_ALEN] = {0};
 	unsigned char addr1[IP6_ALEN] = {0};
