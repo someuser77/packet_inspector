@@ -1,4 +1,4 @@
-CFLAGS=-g -Wall -Wextra -Isrc/lib -Isrc/modules $(OPTFLAGS)
+CFLAGS=-g -Wall -Wextra -Werror -Isrc/lib -Isrc/modules $(OPTFLAGS)
 LIBS=-ldl
 
 # all .c files in source and below
@@ -9,10 +9,11 @@ PARSERS_SRC=$(wildcard src/parsers/*.c)
 PARSERS=$(PARSERS_SRC:.c=)
 
 TEST_PARSERS_SRC=$(wildcard tests/parsers/*.c)
-TEST_SRC=$(filter-out $(TEST_PARSERS_SRC), $(wildcard tests/*.c tests/**/*.c))
+TEST_SRC=$(filter-out $(TEST_PARSERS_SRC) $(TEST_OBJS:.o=.c), $(wildcard tests/*.c tests/**/*.c))
+TEST_OBJS=tests/lib/filter_options_tests_utils.o
 
 TEST_PARSERS=$(TEST_PARSERS_SRC:.c=)
-TESTS=$(TEST_SRC:.c=)
+TESTS=$(filter-out $(TEST_OBJS:.o=.c), $(TEST_SRC:.c=))
 
 TARGET=packet_inspector
 TARGET_SRC=src/$(TARGET).c
@@ -32,10 +33,13 @@ $(TARGET): $(OBJECTS) $(PARSERS)
 test: tests
 	sh ./tests/runtests.sh
 
-tests: $(OBJECTS) $(TESTS) $(TEST_PARSERS)
+tests: $(OBJECTS) $(TEST_OBJS) $(TESTS) $(TEST_PARSERS) 
 
-$(TESTS):
-	$(CC) $(CFLAGS) $(OBJECTS) $@.c -o $@ $(LIBS)
+$(TEST_OBJS):
+	$(CC) -c $(CFLAGS) $(@:.o=.c) -o $@
+
+$(TESTS): $(TEST_OBJS)
+	$(CC) $(CFLAGS) $(OBJECTS) $(TEST_OBJS) $@.c -o $@ $(LIBS)
 
 $(TEST_PARSERS) $(PARSERS):
 	$(CC) -c $(CFLAGS) $@.c -o $@.o -fpic $(LIBS)
