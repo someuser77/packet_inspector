@@ -114,9 +114,13 @@ DirectionalFilterOptions *DirectionalFilterOptions_Deserialize(const unsigned ch
 void DirectionalFilterOptions_Destroy(DirectionalFilterOptions **options) {
 	FilterOptions *incoming = (*options)->getIncomingFilterOptions(*options);
 	FilterOptions *outgoing = (*options)->getOutgoingFilterOptions(*options);
-	release(incoming);
-	if (incoming != outgoing)
-		release(outgoing);
+	bool sameFilterOptions = incoming == outgoing;
+	
+	FilterOptions_Destroy(&incoming);
+	
+	if (!sameFilterOptions)
+		FilterOptions_Destroy(&outgoing);
+	
 	release(impl(*options));
 	release(*options);
 	*options = NULL;

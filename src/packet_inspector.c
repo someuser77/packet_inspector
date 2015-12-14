@@ -163,6 +163,7 @@ void displayPacket(ParserRepository *repo, unsigned char *buffer, size_t size) {
 
 int main(int __attribute__((unused)) argc, char __attribute__((unused)) *argv[]) {
 	unsigned char *buffer;
+	char *description;
 	size_t size;
 	FilterClient *filterClient;
 	DirectionalFilterOptions *options = DirectionalFilterOptions_Create();
@@ -200,8 +201,13 @@ int main(int __attribute__((unused)) argc, char __attribute__((unused)) *argv[])
 	//filterOptions->setSrcPort(filterOptions, 80);
 	//filterOptions->setDstPort(filterOptions, 80);
 	
-	printf("Incoming: %s", incoming->description(incoming));
-	printf("Outgoing: %s", outgoing->description(outgoing));
+	description = incoming->description(incoming);
+	printf("Incoming: %s", description);
+	free(description);
+	
+	description = outgoing->description(outgoing);
+	printf("Outgoing: %s", description);
+	free(description);
 	
 	options->setIncomingFilterOptions(options, incoming);
 	options->setOutgoingFilterOptions(options, outgoing);
@@ -236,6 +242,8 @@ int main(int __attribute__((unused)) argc, char __attribute__((unused)) *argv[])
 	}
 	printf("Destroy...");
 	filterClient->destroy(filterClient);
+	repository->destroy(repository);
+	DirectionalFilterOptions_Destroy(&options);
 	free(filterClient);
 	
 	return EXIT_SUCCESS;
