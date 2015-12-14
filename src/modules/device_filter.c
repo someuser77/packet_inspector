@@ -15,8 +15,7 @@
 
 #include "utils.h"
 #include "filter_executer.h"
-#include "filter_options.h"
-
+#include "directional_filter_options.h"
 
 // http://stackoverflow.com/questions/27755246/netlink-socket-creation-returns-null
 MODULE_LICENSE("GPL");
@@ -33,7 +32,8 @@ static bool promiscuitySet = false;
 DEFINE_SPINLOCK(packetProcessing);
 static int pid;
 DEFINE_MUTEX(initializationLock);
-static FilterExecuter *executer = NULL;
+static FilterExecuter *incomingFilter = NULL;
+static FilterExecuter *outgoingFilter = NULL;
 
 static void netlinkReceiveMessage(struct sk_buff *skb);
 static struct netlink_kernel_cfg netlinkConfig = {
@@ -148,15 +148,26 @@ static int sendTextResponseToClient(int pid, char *response){
 	return sendResult;
 }
 
-static void initialize(struct FilterOptions *filterOptions) {	
-	executer = FilterExecuter_Create(filterOptions);
-	packetType.dev = getConfiguredNetDevice(filterOptions);
+static void initialize(DirectionalFilterOptions *options) {
+	
+	FilterOptions *incomingOptions = options->getIncomingFilterOptions(options);
+	FilterOptions *outgoingOptions = options->getOutgoingFilterOptions(options);
+	
+	incomingFilter = FilterExecuter_Create();
+	outgoingFilter = FilterExecuter_Create();
+	
+	packetType.dev = getConfiguredNetDevice(incomingOptions);
 	dev_add_pack(&packetType);
 	
 	klog_info("packet_device_filter added\n");
 	
-	if (debugPrint)
-		executer->setDebugPrint(executer, debugPrint);
+	if (debugPrint) {
+		incomingFilter->setDebugPrint(incomingFilter, debugPrint);
+		outgoingFilter->setDebugPrint(outgoingFilter, debugPrint);
+	}
+	
+	incomingFilter->initialize(incomingFilter, incomingOptions);
+	outgoingFilter->initialize(outgoingFilter, outgoingOptions);
 	
 	sendTextResponseToClient(pid, "ok");	
 	klog_info("Sending is now enabled!");	
@@ -178,9 +189,12 @@ static void shutdown(bool clientInitiatedShutdown) {
 	initialized = false;
 	if (clientInitiatedShutdown) {
 		// yes this is a leak, but its better to leak than to hang for now.
-		executer->destroy(executer);
+		incomingFilter->destroy(incomingFilter);
+		outgoingFilter->destroy(outgoingFilter);
 	}
-	executer = NULL;
+	
+	incomingFilter = NULL;
+	outgoingFilter = NULL;
 	
 	spin_unlock(&packetProcessing);
 	
@@ -210,7 +224,7 @@ static void duplicateInitialization(int pid) {
 	sendTextResponseToClient(pid, "Got initialization message but already initialized.");
 }
 
-static bool handleEdgeCases(FilterOptions *filterOptions, int pid){
+static bool handleWrongInitialization(FilterOptions *filterOptions, int pid){
 	
 	if (!initialized && filterOptions->isShutdownSet(filterOptions)) {
 		uninitializedShutdown(pid);
@@ -228,7 +242,9 @@ static bool handleEdgeCases(FilterOptions *filterOptions, int pid){
 // http://linux-development-for-fresher.blogspot.co.il/2012/05/understanding-netlink-socket.html
 // http://binwaheed.blogspot.co.il/2010/08/after-reading-kernel-source-i-finally.html
 static void netlinkReceiveMessage(struct sk_buff *skb) {
-	FilterOptions *filterOptions;
+	DirectionalFilterOptions *options;
+	FilterOptions *incoming;
+	FilterOptions *outgoing;
 	struct nlmsghdr *nlh;
 	int messagePid;
 	
@@ -239,21 +255,25 @@ static void netlinkReceiveMessage(struct sk_buff *skb) {
 	
 	//logContextInfo();
 	
-	filterOptions = FilterOptions_Deserialize(NLMSG_DATA(nlh), NLMSG_PAYLOAD(nlh,0));
+	options = DirectionalFilterOptions_Deserialize(NLMSG_DATA(nlh), NLMSG_PAYLOAD(nlh,0));
+	incoming = options->getIncomingFilterOptions(options);
+	outgoing = options->getOutgoingFilterOptions(options);
 	
-	if (debugPrint)
-		klog_info("FilterOptions were: %s", filterOptions->description(filterOptions));
+	if (debugPrint) {
+		klog_info("IncomingFilterOptions were: %s", incoming->description(incoming));
+		klog_info("OutgoingFilterOptions were: %s", outgoing->description(outgoing));
+	}
 	
 	mutex_lock(&initializationLock);
 	
-	if (handleEdgeCases(filterOptions, messagePid))
+	if (handleWrongInitialization(incoming, messagePid) || handleWrongInitialization(outgoing, messagePid))
 		goto release;
 	
 	pid = messagePid;
 	
-	if (!filterOptions->isShutdownSet(filterOptions)) {
+	if (!incoming->isShutdownSet(incoming) && !outgoing->isShutdownSet(outgoing)) {
 		
-		initialize(filterOptions);
+		initialize(options);
 		
 	} else {
 		
@@ -262,7 +282,7 @@ static void netlinkReceiveMessage(struct sk_buff *skb) {
 	}
 
 release:
-	vfree(filterOptions);
+	DirectionalFilterOptions_Destroy(&options);
 	
 	// http://stackoverflow.com/questions/10138848/kernel-crash-when-trying-to-free-the-skb-with-nlmsg-freeskb-out
 	//nlmsg_free(skb_out); // nlmsg_unicast frees skb_out on error. No need to free.
@@ -278,6 +298,7 @@ int packet_interceptor(struct sk_buff *skb,  struct net_device *dev,  struct pac
 	//struct nlmsghdr *nlh;
 	struct net_device *device;
 	bool match;
+	FilterExecuter *filter = NULL;
 	
 	if (!initialized) {
 		klog_info("Dropped packet on device %s because we were not initialized.", skb->dev->name);
@@ -312,29 +333,6 @@ int packet_interceptor(struct sk_buff *skb,  struct net_device *dev,  struct pac
 		goto unlock_and_free_skb;
 	}
 	
-	if (skbc->pkt_type == PACKET_HOST) {
-		// the ethernet header is missing on host packets.
-	}
-	
-	if (skbc->pkt_type == PACKET_OUTGOING) {
-		//print_ethernet_header((struct ethhdr *)skb->data);
-		//skb_push(skb, skb_network_offset(skb));
-		//skb_push(skb, ETH_HLEN);
-		
-		// this fixed mac_len but everything else is still broken.
-		/*
-		skb_set_mac_header(skb, 0);
-		skb_set_network_header(skb, ETH_HLEN);
-		skb_reset_mac_len(skb);
-		*/
-		//skb_push(skb, ETH_HLEN);
-		
-		//skb_reset_mac_header(skb);
-		//skb_reset_mac_len(skb);
-		//skb_push(skb, ETH_HLEN);
-		//skb_pull(skb, ETH_HLEN);
-		//skb_reset_mac_header(skb);
-	}
 	
 	if (skb_mac_header(skbc) < skbc->head) {
 		if (debugPrint)
@@ -344,6 +342,7 @@ int packet_interceptor(struct sk_buff *skb,  struct net_device *dev,  struct pac
 			if (debugPrint)
 				klog_error("Bad mac header on %s mac_len: %d nohdr: %d skb_mac_header(skb) + ETH_HLEN > skb->data", getPacketTypeDescription(skbc->pkt_type), skbc->mac_len, skbc->nohdr);
 	}
+	
 	//skb_reset_mac_header(skb);
 	//print_ethernet_header(eth_hdr(skb));
 	
@@ -360,9 +359,10 @@ int packet_interceptor(struct sk_buff *skb,  struct net_device *dev,  struct pac
 		goto unlock_and_free_skb;
 	}
 	
-	match = executer->matchAll(executer, skbc);
+	filter = (skbc->pkt_type == PACKET_OUTGOING) ? outgoingFilter : incomingFilter;
+		
+	match = filter->matchAll(filter, skbc);
 	//klog_info("Got a packet that %s.", match ? "matched" : "didn't match");
-	
 	
 	if (!match) {
 		if (debugPrint)

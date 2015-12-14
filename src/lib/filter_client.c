@@ -123,8 +123,8 @@ static void fillDestinationAddress(struct FilterClient *self) {
     destinationAddress->nl_groups = 0; /* unicast */
 }
 
-static size_t getPayloadSize(struct FilterOptions *filterOptions) {
-	return filterOptions->serialize(filterOptions, NULL, 0);	
+static size_t getPayloadSize(DirectionalFilterOptions *options) {
+	return options->serialize(options, NULL, 0);	
 }
 
 static struct nlmsghdr *createNetlinkMessageHeader(size_t payloadSize) {
@@ -136,10 +136,10 @@ static struct nlmsghdr *createNetlinkMessageHeader(size_t payloadSize) {
 	return netlinkMessageHeader;
 }
 
-static bool setData(struct nlmsghdr *netlinkMessageHeader, struct FilterOptions *filterOptions) {
-	size_t size = getPayloadSize(filterOptions);
+static bool setData(struct nlmsghdr *netlinkMessageHeader, DirectionalFilterOptions *options) {
+	size_t size = getPayloadSize(options);
 	unsigned char *buffer = (unsigned char *)malloc(size);	
-	if (filterOptions->serialize(filterOptions, buffer, size) < size) {
+	if (options->serialize(options, buffer, size) < size) {
 		free(buffer);
 		return false;
 	}
@@ -165,16 +165,16 @@ static void fillMsgHdr(struct FilterClient *self, struct msghdr *msg) {
     msg->msg_iovlen = 1;
 }
 
-static bool sendFilterOptions(struct FilterClient *self, struct FilterOptions *filterOptions) {
+static bool sendFilterOptions(struct FilterClient *self, DirectionalFilterOptions *options) {
 	struct nlmsghdr *netlinkMessageHeader;
 	const int MAX_RESPONSE_SIZE = 128;
 	char *responseBuffer;
 	ssize_t response_length;
 	struct msghdr msg;
 	
-	netlinkMessageHeader = createNetlinkMessageHeader(getPayloadSize(filterOptions));
+	netlinkMessageHeader = createNetlinkMessageHeader(getPayloadSize(options));
 	
-	setData(netlinkMessageHeader, filterOptions);
+	setData(netlinkMessageHeader, options);
 	
 	fillIovc(self, netlinkMessageHeader);
 	
@@ -209,7 +209,7 @@ static bool sendFilterOptions(struct FilterClient *self, struct FilterOptions *f
 	return true;
 }
 
-bool initialize(struct FilterClient *self, struct FilterOptions *filterOptions) {
+bool initialize(FilterClient *self, DirectionalFilterOptions *options) {
 
 	if (!buildSocket(self))
 		return false;
@@ -224,7 +224,7 @@ bool initialize(struct FilterClient *self, struct FilterOptions *filterOptions) 
 	
 	fillDestinationAddress(self);
 	
-	return sendFilterOptions(self, filterOptions);
+	return sendFilterOptions(self, options);
 }
 
 static bool isTerminationSignal(struct FilterClient *self) {
@@ -353,12 +353,16 @@ unsigned char *receive(struct FilterClient *self, size_t *size) {
 }
 
 void destroy(struct FilterClient *self) {
+	DirectionalFilterOptions *options = DirectionalFilterOptions_Create();
 	FilterOptions *filterOptions = FilterOptions_Create();
 	filterOptions->setShutdown(filterOptions);
 	
-	sendFilterOptions(self, filterOptions);
+	options->setIncomingFilterOptions(options, filterOptions);
+	options->setOutgoingFilterOptions(options, filterOptions);
 	
-	FilterOptions_Destroy(&filterOptions);
+	sendFilterOptions(self, options);
+	
+	DirectionalFilterOptions_Destroy(&options);
 	free(impl(self)->pfds);
 	free(self->impl);
 }
