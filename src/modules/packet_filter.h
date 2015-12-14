@@ -23,6 +23,7 @@ typedef struct DeviceFilter {
 	bool (*match)(const struct DeviceFilter * const deviceFilter, const char const device[IFNAMSIZ]);
 	bool (*matcher)(const char * const device, void *params);
 	void (*destroy)(struct DeviceFilter *);
+	char *(*description)(void);
 } DeviceFilter;
 
 #define DEFINE_PACKET_FILTER(Type, Header) typedef struct Type##PacketFilter { \
@@ -30,6 +31,7 @@ typedef struct DeviceFilter {
 	bool (*match)(const struct Type##PacketFilter * const packetFilter, const struct Header * const packet); \
 	bool (*matcher)(const struct Header * const packet, void *params); \
 	void (*destroy)(struct Type##PacketFilter *); \
+	char *(*description)(void); \
 } Type##PacketFilter;
 
 DEFINE_PACKET_FILTER(Eth, ethhdr);

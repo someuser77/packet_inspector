@@ -113,6 +113,23 @@ DEFINE_MATCH(Ip6, struct ipv6hdr)
 DEFINE_MATCH(Tcp, struct tcphdr)
 DEFINE_MATCH(Udp, struct udphdr)
 
+static char *getDefaultDescription(void) {
+	return "No Description Exists.";
+}
+
+#define DEFINE_DESCRIPTION_FUNC(NAME, DESC)	\
+static char *get##NAME##Description(void) {				\
+	return DESC;														\
+}
+
+//DEFINE_DESCRIPTION_FUNC(SrcMac, "Src MAC");
+//DEFINE_DESCRIPTION_FUNC(DstMac, "Dst MAC");
+DEFINE_DESCRIPTION_FUNC(SrcIp, "Src Ip");
+DEFINE_DESCRIPTION_FUNC(DstIp, "Dst Ip");
+DEFINE_DESCRIPTION_FUNC(Protocol, "Ip Protocol");
+//DEFINE_DESCRIPTION_FUNC(SrcPort, "Src Port");
+//DEFINE_DESCRIPTION_FUNC(DstPort, "Dst Port");
+
 typedef enum  {PacketFilter_Device, PacketFilter_Eth, PacketFilter_Ip, PacketFilter_Ip6, PacketFilter_Tcp, PacketFilter_Udp} PacketFilterType;
 
 static void *create(PacketFilterType packetFilterType) {	
@@ -127,26 +144,32 @@ static void *create(PacketFilterType packetFilterType) {
 		case PacketFilter_Device:
 			deviceFilter = (struct DeviceFilter *)alloc(sizeof(struct DeviceFilter));
 			deviceFilter->match = matchDevice;
+			deviceFilter->description = getDefaultDescription;
 			return deviceFilter;
 		case PacketFilter_Eth:
 			ethFilter = (struct EthPacketFilter *)alloc(sizeof(struct EthPacketFilter));
 			ethFilter->match = matchEth;
+			ethFilter->description = getDefaultDescription;
 			return ethFilter;
 		case PacketFilter_Ip:
 			ipFilter = (struct IpPacketFilter *)alloc(sizeof(struct IpPacketFilter));
 			ipFilter->match = matchIp;
+			ipFilter->description = getDefaultDescription;
 			return ipFilter;
 		case PacketFilter_Ip6:
 			ip6Filter = (struct Ip6PacketFilter *)alloc(sizeof(struct Ip6PacketFilter));
 			ip6Filter->match = matchIp6;
+			ip6Filter->description = getDefaultDescription;
 			return ip6Filter;
 		case PacketFilter_Tcp:
 			tcpFilter = (struct TcpPacketFilter *)alloc(sizeof(struct TcpPacketFilter));
 			tcpFilter->match = matchTcp;
+			tcpFilter->description = getDefaultDescription;
 			return tcpFilter;
 		case PacketFilter_Udp:
 			udpFilter = (struct UdpPacketFilter *)alloc(sizeof(struct UdpPacketFilter));
 			udpFilter->match = matchUdp;
+			udpFilter->description = getDefaultDescription;
 			return udpFilter;
 		default:
 			return NULL;
@@ -185,20 +208,21 @@ EthPacketFilter *PacketFilter_createEthEtherTypeFilter(unsigned short etherType)
 	return filter;
 }
 
-static IpPacketFilter *PacketFilter_createIpFilter(bool (*filterIp)(const struct iphdr * const packet, void *ip), uint32_t ip) {
+static IpPacketFilter *PacketFilter_createIpFilter(bool (*filterIp)(const struct iphdr * const packet, void *ip), char *(*getDescription)(void), uint32_t ip) {
 	IpPacketFilter *filter = create(PacketFilter_Ip);
 	filter->params = alloc(sizeof(uint32_t));
 	*((uint32_t *)filter->params) = ip;
 	filter->matcher = filterIp;
+	filter->description = getDescription;
 	return filter;
 }
 
 IpPacketFilter *PacketFilter_createIpSrcIpFilter(uint32_t ip) {
-	return PacketFilter_createIpFilter(filterSrcIp, ip);
+	return PacketFilter_createIpFilter(filterSrcIp, getSrcIpDescription, ip);
 }
 
 IpPacketFilter *PacketFilter_createIpDstIpFilter(uint32_t ip) {
-	return PacketFilter_createIpFilter(filterDstIp, ip);
+	return PacketFilter_createIpFilter(filterDstIp, getDstIpDescription, ip);
 }
 
 static Ip6PacketFilter *PacketFilter_createIp6Filter(bool (*filterIp6)(const struct ipv6hdr * const packet, void *ip6), const unsigned char const ip6[IP6_ALEN]) {
@@ -222,6 +246,7 @@ IpPacketFilter *PacketFilter_createIpProtocolFilter(unsigned char protocol) {
 	filter->params = alloc(sizeof(unsigned char));
 	memcpy(filter->params, &protocol, sizeof(unsigned char));
 	filter->matcher = filterIpProtocol;
+	filter->description = getProtocolDescription;
 	return filter;
 }
 
