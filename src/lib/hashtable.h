@@ -3,6 +3,9 @@
 
 #include <stdbool.h>
 
+/* this is a very simple hash table implementation
+	just for kicks. I might as well used uthash.h */ 
+
 typedef struct Hashtable {
 	void *impl;
 	bool (*exists)(struct Hashtable *self, int key);
