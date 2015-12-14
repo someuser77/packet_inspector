@@ -10,8 +10,9 @@ typedef struct FilterExecuter {
 	int (*getTotalFilters)(struct FilterExecuter *self);
 	void (*destroy)(struct FilterExecuter *self);
 	void (*setDebugPrint)(struct FilterExecuter *self, int debugPrint);
+	void (*initialize)(struct FilterExecuter *self, FilterOptions *filterOptions);
 } FilterExecuter;
 
-FilterExecuter *FilterExecuter_Create(FilterOptions *filterOptions);
+FilterExecuter *FilterExecuter_Create(void);
 
 #endif

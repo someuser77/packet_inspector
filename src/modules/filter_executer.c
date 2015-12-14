@@ -37,6 +37,7 @@ typedef struct FilterExecuterImpl {
 	struct list_head udp;
 	int totalFilters;
 	int debugPrint;
+	bool initialized;
 } FilterExecuterImpl;
 
 static inline FilterExecuterImpl *impl(FilterExecuter *self) {
@@ -101,14 +102,16 @@ static bool getIp6Protocol(struct sk_buff *skb, unsigned char *protocol) {
 	return true;
 }
 
-#define ITERATE_FILTERS(pos, head, member, param) do {	\
-list_for_each_entry(pos, head, member) {							\
-				if (pos->filter->match(pos->filter, param)) {		\
-					matchedFilters++;											\
-				} else {																\
-					return false;														\
-				}																			\
-			} 																				\
+#define ITERATE_FILTERS(pos, head, member, param) do {																											\
+list_for_each_entry(pos, head, member) {																																	\
+				if (pos->filter->match(pos->filter, param)) {																												\
+					matchedFilters++;																																					\
+				} else {																																										\
+					if (debugPrint)																																							\
+						klog_info("%s iterator didn't match rule %s #%d.", #head, pos->filter->description(),matchedFilters + 1);		\
+					return false;																																								\
+				}																																													\
+			} 																																														\
 	} while (0)																						
 
 static struct ethhdr *getEthhdrByOffset(struct sk_buff *skb, size_t offset) {
@@ -147,6 +150,21 @@ void setDebugPrint(struct FilterExecuter *self, int debugPrint) {
 	impl(self)->debugPrint = debugPrint;
 }
 
+static const char * const getPacketTypeDescription(unsigned char pktType) {
+	static const char * const pktTypes[] = {
+		"PACKET_HOST",
+		"PACKET_BROADCAST",
+		"PACKET_MULTICAST",
+		"PACKET_OTHERHOST",
+		"PACKET_OUTGOING",
+		"PACKET_LOOPBACK",
+		"PACKET_USER",
+		"PACKET_KERNEL",
+		"PACKET_FASTROUTE"
+	};
+	return pktTypes[pktType];
+}
+
 bool matchAll(struct FilterExecuter *self, struct sk_buff *skb) {
 	struct ethhdr *eth;
 	struct tcphdr *tcp;
@@ -171,6 +189,11 @@ bool matchAll(struct FilterExecuter *self, struct sk_buff *skb) {
 	struct iphdr *(*getIphdr)(struct sk_buff *skb, size_t offset);
 	struct ipv6hdr *(*getIpv6hdr)(struct sk_buff *skb, size_t offset);
 	unsigned char *(*getTransporthdr)(struct sk_buff *skb, size_t offset);
+	
+	if (!impl(self)->initialized) {
+		klog_warn("Filter wasn't initialized. All packets are dropped.");
+		return false;
+	}
 	
 	if (skb->pkt_type != PACKET_OUTGOING) {
 		getEthhdr = getEthhdrByFunction;
@@ -204,8 +227,8 @@ bool matchAll(struct FilterExecuter *self, struct sk_buff *skb) {
 	}
 	*/
 	if (debugPrint) {
-		klog_info("SKB: Head %p Data %p", skb->head, skb->data);
-		klog_info("Src: %pM Dst: %pM Proto: %04x", eth->h_source, eth->h_dest, ntohs(eth->h_proto));
+		klog_info("SKB: Head: %p Data: %p Direction: %s", skb->head, skb->data, getPacketTypeDescription(skb->pkt_type));
+		klog_info("MAC: Src: %pM Dst: %pM Proto: %04x", eth->h_source, eth->h_dest, ntohs(eth->h_proto));
 	}
 	
 	ITERATE_FILTERS(ethFilter, ethFilters(self), filters, eth);
@@ -220,7 +243,7 @@ bool matchAll(struct FilterExecuter *self, struct sk_buff *skb) {
 				klog_error("Protocol was IP but header was null.");
 				return false;
 			}
-			if (debugPrint) klog_info("Src: %pI4 Dst: %pI4: Proto: %u", &ip->saddr, &ip->daddr, ip->protocol);
+			if (debugPrint) klog_info("IP: Src: %pI4 Dst: %pI4: Proto: %u", &ip->saddr, &ip->daddr, ip->protocol);
 			ITERATE_FILTERS(ipFilter, ipFilters(self), filters, ip);
 			ipProtocol = ip->protocol;
 			isIpProtocol = true;
@@ -262,8 +285,9 @@ bool matchAll(struct FilterExecuter *self, struct sk_buff *skb) {
 					return false;
 				}
 				//klog_info("Iterating %s empty TCP Filters...", list_empty(tcpFilters(self)) ? "" : "non");
-				//klog_info("Got TCP packet with SRC port of %d", ntohs(tcp->source));
-				//klog_info("Got TCP packet with DST port of %d", ntohs(tcp->dest));
+				if (debugPrint) {
+					klog_info("TCP: SrcPort: %d DstPort: %d", ntohs(tcp->source), ntohs(tcp->dest));
+				}
 				ITERATE_FILTERS(tcpFilter, tcpFilters(self), filters, tcp);
 				break;
 			case IPPROTO_UDP:
@@ -282,8 +306,8 @@ bool matchAll(struct FilterExecuter *self, struct sk_buff *skb) {
 	//klog_info("%02x:%02x:%02x:%02x:%02x:%02x\n", eth->h_source[0], eth->h_source[1], eth->h_source[2], eth->h_source[3], eth->h_source[4], eth->h_source[5]);
 	
 	//klog_info("Inside Match All... Packet Protocol was: %04X", ntohs(skb->protocol));
-	
-	//klog_info("Filters matched: %d out of %d.", matchedFilters, getTotalFilters(self));
+	if (debugPrint)
+		klog_info("Filters matched: %d out of %d.", matchedFilters, getTotalFilters(self));
 	
 	if (skb->pkt_type != PACKET_OUTGOING) {
 		//skb_pull(skb, ETH_HLEN);
@@ -292,7 +316,102 @@ bool matchAll(struct FilterExecuter *self, struct sk_buff *skb) {
 	return matchedFilters == getTotalFilters(self);
 }
 
-FilterExecuter *FilterExecuter_Create(FilterOptions *filterOptions) {
+static void initialize(struct FilterExecuter *self, FilterOptions *filterOptions) {
+	
+	int debugPrint = impl(self)->debugPrint;
+	
+	if (filterOptions->isEtherTypeSet(filterOptions)) {
+		unsigned short etherType;
+		EthFilterList *ethFilter = (EthFilterList *)vmalloc(sizeof(EthFilterList));
+		etherType = filterOptions->getEtherType(filterOptions);
+		ethFilter->filter = PacketFilter_createEthEtherTypeFilter(etherType);
+		list_add(&ethFilter->filters, &impl(self)->eth);
+		impl(self)->totalFilters++;
+		if (debugPrint) klog_info("Adding Filter EtherType = %d", etherType);
+	}
+	
+	if (filterOptions->isSrcMacSet(filterOptions)) {
+		unsigned char mac[ETH_ALEN];
+		EthFilterList *ethFilter = (EthFilterList *)vmalloc(sizeof(EthFilterList));
+		filterOptions->getSrcMac(filterOptions, mac);
+		ethFilter->filter = PacketFilter_createEthSrcMacFilter(mac);
+		list_add(&ethFilter->filters, &impl(self)->eth);
+		impl(self)->totalFilters++;
+		if (debugPrint) klog_info("Adding Filter Source MAC = %pM", mac);
+	}
+	
+	if (filterOptions->isDstMacSet(filterOptions)) {
+		unsigned char mac[ETH_ALEN];
+		EthFilterList *ethFilter = (EthFilterList *)vmalloc(sizeof(EthFilterList));
+		filterOptions->getDstMac(filterOptions, mac);
+		ethFilter->filter = PacketFilter_createEthDstMacFilter(mac);
+		list_add(&ethFilter->filters, &impl(self)->eth);
+		impl(self)->totalFilters++;
+		if (debugPrint) klog_info("Adding Filter Destination MAC = %pM", mac);
+	}
+	
+	if (filterOptions->isSrcIpSet(filterOptions)) {
+		uint32_t ip;
+		IpFilterList *ipFilter = (IpFilterList *)vmalloc(sizeof(IpFilterList));
+		ip = filterOptions->getSrcIp(filterOptions);
+		ipFilter->filter = PacketFilter_createIpSrcIpFilter(ip);
+		list_add(&ipFilter->filters, &impl(self)->ip);
+		impl(self)->totalFilters++;
+		if (debugPrint) klog_info("Adding Filter Source IP = %pI4", &ip);
+	}
+	
+	if (filterOptions->isDstIpSet(filterOptions)) {
+		uint32_t ip;
+		IpFilterList *ipFilter = (IpFilterList *)vmalloc(sizeof(IpFilterList));
+		ip = filterOptions->getDstIp(filterOptions);
+		ipFilter->filter = PacketFilter_createIpDstIpFilter(ip);
+		list_add(&ipFilter->filters, &impl(self)->ip);
+		impl(self)->totalFilters++;
+		if (debugPrint) klog_info("Adding Filter Destination IP = %pI4", &ip);
+	}
+	
+	if (filterOptions->isSrcIp6Set(filterOptions)) {
+		impl(self)->totalFilters++;
+	}
+	
+	if (filterOptions->isDstIp6Set(filterOptions)) {
+		impl(self)->totalFilters++;
+	}
+	
+	if (filterOptions->isProtocolSet(filterOptions)) {
+		unsigned char protocol;
+		
+		IpFilterList *ipFilter = (IpFilterList *)vmalloc(sizeof(IpFilterList));
+		protocol = filterOptions->getProtocol(filterOptions);
+		ipFilter->filter = PacketFilter_createIpProtocolFilter(protocol);
+		list_add(&ipFilter->filters, &impl(self)->ip);
+		impl(self)->totalFilters++;
+		if (debugPrint) klog_info("Adding Filter Protocol = %d", protocol);
+	}
+	
+	if (filterOptions->isSrcPortSet(filterOptions)) {
+		uint16_t port;
+		TcpFilterList *tcpFilter = (TcpFilterList *)vmalloc(sizeof(TcpFilterList));
+		port = filterOptions->getSrcPort(filterOptions);
+		tcpFilter->filter = PacketFilter_createTcpSrcPortFilter(port);
+		list_add(&tcpFilter->filters, &impl(self)->tcp);
+		impl(self)->totalFilters++;
+		if (debugPrint) klog_info("Adding Filter Source Port = %d", port);
+	}
+	
+	if (filterOptions->isDstPortSet(filterOptions)) {
+		uint16_t port;
+		TcpFilterList *tcpFilter = (TcpFilterList *)vmalloc(sizeof(TcpFilterList));
+		port = filterOptions->getDstPort(filterOptions);
+		tcpFilter->filter = PacketFilter_createTcpDstPortFilter(port);
+		list_add(&tcpFilter->filters, &impl(self)->tcp);
+		impl(self)->totalFilters++;
+		if (debugPrint) klog_info("Adding Filter Destination Port = %d", port);
+	}
+	impl(self)->initialized = true;
+}
+
+FilterExecuter *FilterExecuter_Create(void) {
 	FilterExecuter *result = (FilterExecuter *)vzalloc(sizeof(FilterExecuter));
 	FilterExecuterImpl *impl = (FilterExecuterImpl *)vzalloc(sizeof(FilterExecuterImpl));
 	impl->totalFilters = 0;
@@ -304,91 +423,10 @@ FilterExecuter *FilterExecuter_Create(FilterOptions *filterOptions) {
 	INIT_LIST_HEAD(&impl->tcp);
 	INIT_LIST_HEAD(&impl->udp);
 	
-	if (filterOptions->isEtherTypeSet(filterOptions)) {
-		unsigned short etherType;
-		EthFilterList *ethFilter = (EthFilterList *)vmalloc(sizeof(EthFilterList));
-		etherType = filterOptions->getEtherType(filterOptions);
-		ethFilter->filter = PacketFilter_createEthEtherTypeFilter(etherType);
-		list_add(&ethFilter->filters, &impl->eth);
-		impl->totalFilters++;
-	}
-	
-	if (filterOptions->isSrcMacSet(filterOptions)) {
-		unsigned char mac[ETH_ALEN];
-		EthFilterList *ethFilter = (EthFilterList *)vmalloc(sizeof(EthFilterList));
-		filterOptions->getSrcMac(filterOptions, mac);
-		ethFilter->filter = PacketFilter_createEthSrcMacFilter(mac);
-		list_add(&ethFilter->filters, &impl->eth);
-		impl->totalFilters++;
-	}
-	
-	if (filterOptions->isDstMacSet(filterOptions)) {
-		unsigned char mac[ETH_ALEN];
-		EthFilterList *ethFilter = (EthFilterList *)vmalloc(sizeof(EthFilterList));
-		filterOptions->getDstMac(filterOptions, mac);
-		ethFilter->filter = PacketFilter_createEthDstMacFilter(mac);
-		list_add(&ethFilter->filters, &impl->eth);
-		impl->totalFilters++;
-	}
-	
-	if (filterOptions->isSrcIpSet(filterOptions)) {
-		uint32_t ip;
-		IpFilterList *ipFilter = (IpFilterList *)vmalloc(sizeof(IpFilterList));
-		ip = filterOptions->getSrcIp(filterOptions);
-		ipFilter->filter = PacketFilter_createIpSrcIpFilter(ip);
-		list_add(&ipFilter->filters, &impl->ip);
-		impl->totalFilters++;
-	}
-	
-	if (filterOptions->isDstIpSet(filterOptions)) {
-		uint32_t ip;
-		IpFilterList *ipFilter = (IpFilterList *)vmalloc(sizeof(IpFilterList));
-		ip = filterOptions->getDstIp(filterOptions);
-		ipFilter->filter = PacketFilter_createIpDstIpFilter(ip);
-		list_add(&ipFilter->filters, &impl->ip);
-		impl->totalFilters++;
-	}
-	
-	if (filterOptions->isSrcIp6Set(filterOptions)) {
-		impl->totalFilters++;
-	}
-	
-	if (filterOptions->isDstIp6Set(filterOptions)) {
-		impl->totalFilters++;
-	}
-	
-	if (filterOptions->isProtocolSet(filterOptions)) {
-		unsigned char protocol;
-		
-		IpFilterList *ipFilter = (IpFilterList *)vmalloc(sizeof(IpFilterList));
-		protocol = filterOptions->getProtocol(filterOptions);
-		ipFilter->filter = PacketFilter_createIpProtocolFilter(protocol);
-		list_add(&ipFilter->filters, &impl->ip);
-		
-		impl->totalFilters++;
-	}
-	
-	if (filterOptions->isSrcPortSet(filterOptions)) {
-		uint16_t port;
-		TcpFilterList *tcpFilter = (TcpFilterList *)vmalloc(sizeof(TcpFilterList));
-		port = filterOptions->getSrcPort(filterOptions);
-		tcpFilter->filter = PacketFilter_createTcpSrcPortFilter(port);
-		list_add(&tcpFilter->filters, &impl->tcp);
-		impl->totalFilters++;
-	}
-	
-	if (filterOptions->isDstPortSet(filterOptions)) {
-		uint16_t port;
-		TcpFilterList *tcpFilter = (TcpFilterList *)vmalloc(sizeof(TcpFilterList));
-		port = filterOptions->getDstPort(filterOptions);
-		tcpFilter->filter = PacketFilter_createTcpDstPortFilter(port);
-		list_add(&tcpFilter->filters, &impl->tcp);
-		impl->totalFilters++;
-	}
-	
 	result->matchAll = matchAll;
 	result->impl = impl;
 	result->destroy = destroy;
 	result->setDebugPrint = setDebugPrint;
+	result->initialize = initialize;
 	return result;
 }
