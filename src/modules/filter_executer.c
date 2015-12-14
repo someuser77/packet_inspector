@@ -36,7 +36,7 @@ typedef struct FilterExecuterImpl {
 	struct list_head tcp;
 	struct list_head udp;
 	int totalFilters;
-	int debugPrint;
+	int debug;
 	bool initialized;
 } FilterExecuterImpl;
 
@@ -107,7 +107,7 @@ list_for_each_entry(pos, head, member) {																																	\
 				if (pos->filter->match(pos->filter, param)) {																												\
 					matchedFilters++;																																					\
 				} else {																																										\
-					if (debugPrint)																																							\
+					if (debug)																																							\
 						klog_info("%s iterator didn't match rule %s #%d.", #head, pos->filter->description(),matchedFilters + 1);		\
 					return false;																																								\
 				}																																													\
@@ -146,8 +146,8 @@ static unsigned char *getTransporthdrByFunction(struct sk_buff *skb, __attribute
 	return skb_transport_header(skb);
 }
 
-void setDebugPrint(struct FilterExecuter *self, int debugPrint) {
-	impl(self)->debugPrint = debugPrint;
+void setDebug(struct FilterExecuter *self, int level) {
+	impl(self)->debug = level;
 }
 
 static const char * const getPacketTypeDescription(unsigned char pktType) {
@@ -173,7 +173,7 @@ bool matchAll(struct FilterExecuter *self, struct sk_buff *skb) {
 	struct ipv6hdr *ip6;
 	int matchedFilters = 0;
 	bool isIpProtocol = false;
-	int debugPrint = impl(self)->debugPrint;
+	int debug = impl(self)->debug;
 	
 	struct EthFilterList *ethFilter = NULL;
 	struct IpFilterList *ipFilter = NULL;
@@ -226,7 +226,7 @@ bool matchAll(struct FilterExecuter *self, struct sk_buff *skb) {
 		}
 	}
 	*/
-	if (debugPrint) {
+	if (debug) {
 		klog_info("SKB: Head: %p Data: %p Direction: %s", skb->head, skb->data, getPacketTypeDescription(skb->pkt_type));
 		klog_info("MAC: Src: %pM Dst: %pM Proto: %04x", eth->h_source, eth->h_dest, ntohs(eth->h_proto));
 	}
@@ -243,7 +243,7 @@ bool matchAll(struct FilterExecuter *self, struct sk_buff *skb) {
 				klog_error("Protocol was IP but header was null.");
 				return false;
 			}
-			if (debugPrint) klog_info("IP: Src: %pI4 Dst: %pI4: Proto: %u", &ip->saddr, &ip->daddr, ip->protocol);
+			if (debug) klog_info("IP: Src: %pI4 Dst: %pI4: Proto: %u", &ip->saddr, &ip->daddr, ip->protocol);
 			ITERATE_FILTERS(ipFilter, ipFilters(self), filters, ip);
 			ipProtocol = ip->protocol;
 			isIpProtocol = true;
@@ -285,7 +285,7 @@ bool matchAll(struct FilterExecuter *self, struct sk_buff *skb) {
 					return false;
 				}
 				//klog_info("Iterating %s empty TCP Filters...", list_empty(tcpFilters(self)) ? "" : "non");
-				if (debugPrint) {
+				if (debug) {
 					klog_info("TCP: SrcPort: %d DstPort: %d", ntohs(tcp->source), ntohs(tcp->dest));
 				}
 				ITERATE_FILTERS(tcpFilter, tcpFilters(self), filters, tcp);
@@ -306,7 +306,7 @@ bool matchAll(struct FilterExecuter *self, struct sk_buff *skb) {
 	//klog_info("%02x:%02x:%02x:%02x:%02x:%02x\n", eth->h_source[0], eth->h_source[1], eth->h_source[2], eth->h_source[3], eth->h_source[4], eth->h_source[5]);
 	
 	//klog_info("Inside Match All... Packet Protocol was: %04X", ntohs(skb->protocol));
-	if (debugPrint)
+	if (debug)
 		klog_info("Filters matched: %d out of %d.", matchedFilters, getTotalFilters(self));
 	
 	if (skb->pkt_type != PACKET_OUTGOING) {
@@ -318,7 +318,7 @@ bool matchAll(struct FilterExecuter *self, struct sk_buff *skb) {
 
 static void initialize(struct FilterExecuter *self, FilterOptions *filterOptions) {
 	
-	int debugPrint = impl(self)->debugPrint;
+	int debug = impl(self)->debug;
 	
 	if (filterOptions->isEtherTypeSet(filterOptions)) {
 		unsigned short etherType;
@@ -327,7 +327,7 @@ static void initialize(struct FilterExecuter *self, FilterOptions *filterOptions
 		ethFilter->filter = PacketFilter_createEthEtherTypeFilter(etherType);
 		list_add(&ethFilter->filters, &impl(self)->eth);
 		impl(self)->totalFilters++;
-		if (debugPrint) klog_info("Adding Filter EtherType = %d", etherType);
+		if (debug) klog_info("Adding Filter EtherType = %d", etherType);
 	}
 	
 	if (filterOptions->isSrcMacSet(filterOptions)) {
@@ -337,7 +337,7 @@ static void initialize(struct FilterExecuter *self, FilterOptions *filterOptions
 		ethFilter->filter = PacketFilter_createEthSrcMacFilter(mac);
 		list_add(&ethFilter->filters, &impl(self)->eth);
 		impl(self)->totalFilters++;
-		if (debugPrint) klog_info("Adding Filter Source MAC = %pM", mac);
+		if (debug) klog_info("Adding Filter Source MAC = %pM", mac);
 	}
 	
 	if (filterOptions->isDstMacSet(filterOptions)) {
@@ -347,7 +347,7 @@ static void initialize(struct FilterExecuter *self, FilterOptions *filterOptions
 		ethFilter->filter = PacketFilter_createEthDstMacFilter(mac);
 		list_add(&ethFilter->filters, &impl(self)->eth);
 		impl(self)->totalFilters++;
-		if (debugPrint) klog_info("Adding Filter Destination MAC = %pM", mac);
+		if (debug) klog_info("Adding Filter Destination MAC = %pM", mac);
 	}
 	
 	if (filterOptions->isSrcIpSet(filterOptions)) {
@@ -357,7 +357,7 @@ static void initialize(struct FilterExecuter *self, FilterOptions *filterOptions
 		ipFilter->filter = PacketFilter_createIpSrcIpFilter(ip);
 		list_add(&ipFilter->filters, &impl(self)->ip);
 		impl(self)->totalFilters++;
-		if (debugPrint) klog_info("Adding Filter Source IP = %pI4", &ip);
+		if (debug) klog_info("Adding Filter Source IP = %pI4", &ip);
 	}
 	
 	if (filterOptions->isDstIpSet(filterOptions)) {
@@ -367,7 +367,7 @@ static void initialize(struct FilterExecuter *self, FilterOptions *filterOptions
 		ipFilter->filter = PacketFilter_createIpDstIpFilter(ip);
 		list_add(&ipFilter->filters, &impl(self)->ip);
 		impl(self)->totalFilters++;
-		if (debugPrint) klog_info("Adding Filter Destination IP = %pI4", &ip);
+		if (debug) klog_info("Adding Filter Destination IP = %pI4", &ip);
 	}
 	
 	if (filterOptions->isSrcIp6Set(filterOptions)) {
@@ -386,7 +386,7 @@ static void initialize(struct FilterExecuter *self, FilterOptions *filterOptions
 		ipFilter->filter = PacketFilter_createIpProtocolFilter(protocol);
 		list_add(&ipFilter->filters, &impl(self)->ip);
 		impl(self)->totalFilters++;
-		if (debugPrint) klog_info("Adding Filter Protocol = %d", protocol);
+		if (debug) klog_info("Adding Filter Protocol = %d", protocol);
 	}
 	
 	if (filterOptions->isSrcPortSet(filterOptions)) {
@@ -396,7 +396,7 @@ static void initialize(struct FilterExecuter *self, FilterOptions *filterOptions
 		tcpFilter->filter = PacketFilter_createTcpSrcPortFilter(port);
 		list_add(&tcpFilter->filters, &impl(self)->tcp);
 		impl(self)->totalFilters++;
-		if (debugPrint) klog_info("Adding Filter Source Port = %d", port);
+		if (debug) klog_info("Adding Filter Source Port = %d", port);
 	}
 	
 	if (filterOptions->isDstPortSet(filterOptions)) {
@@ -406,7 +406,7 @@ static void initialize(struct FilterExecuter *self, FilterOptions *filterOptions
 		tcpFilter->filter = PacketFilter_createTcpDstPortFilter(port);
 		list_add(&tcpFilter->filters, &impl(self)->tcp);
 		impl(self)->totalFilters++;
-		if (debugPrint) klog_info("Adding Filter Destination Port = %d", port);
+		if (debug) klog_info("Adding Filter Destination Port = %d", port);
 	}
 	impl(self)->initialized = true;
 }
@@ -415,7 +415,7 @@ FilterExecuter *FilterExecuter_Create(void) {
 	FilterExecuter *result = (FilterExecuter *)vzalloc(sizeof(FilterExecuter));
 	FilterExecuterImpl *impl = (FilterExecuterImpl *)vzalloc(sizeof(FilterExecuterImpl));
 	impl->totalFilters = 0;
-	impl->debugPrint = 0;
+	impl->debug = 0;
 	
 	INIT_LIST_HEAD(&impl->eth);
 	INIT_LIST_HEAD(&impl->ip);
@@ -426,7 +426,7 @@ FilterExecuter *FilterExecuter_Create(void) {
 	result->matchAll = matchAll;
 	result->impl = impl;
 	result->destroy = destroy;
-	result->setDebugPrint = setDebugPrint;
+	result->setDebug = setDebug;
 	result->initialize = initialize;
 	return result;
 }

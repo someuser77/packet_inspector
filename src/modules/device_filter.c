@@ -22,9 +22,9 @@ MODULE_LICENSE("GPL");
 
 static const int NETLINK_USER = 31;
 
-static int debugPrint = 0;
-module_param(debugPrint, int, S_IRUGO);
-MODULE_PARM_DESC(debugPrint, "Should debug information be printed to dmesg.");
+static int debug = 0;
+module_param(debug, int, S_IRUGO);
+MODULE_PARM_DESC(debug, "Should debug information be printed to dmesg.");
 
 static struct sock *netlinkSocket = NULL;
 static bool initialized = false;
@@ -127,7 +127,7 @@ static int sendResponseToClient(int pid, void *buffer, size_t length) {
 	NETLINK_CB(skb_out).dst_group = 0;
 	memcpy(nlmsg_data(nlh), buffer, length);
 	
-	if (debugPrint)
+	if (debug)
 		klog_info("Sending %zu bytes of response to client...", length);
 	
 	return nlmsg_unicast(netlinkSocket, skb_out, pid);	
@@ -136,7 +136,7 @@ static int sendResponseToClient(int pid, void *buffer, size_t length) {
 static int sendTextResponseToClient(int pid, char *response){
 	int sendResult;
 	
-	if (debugPrint)
+	if (debug)
 		klog_info("%s", response);
 	
 	sendResult = sendResponseToClient(pid, response, strlen(response));
@@ -161,9 +161,9 @@ static void initialize(DirectionalFilterOptions *options) {
 	
 	klog_info("packet_device_filter added\n");
 	
-	if (debugPrint) {
-		incomingFilter->setDebugPrint(incomingFilter, debugPrint);
-		outgoingFilter->setDebugPrint(outgoingFilter, debugPrint);
+	if (debug) {
+		incomingFilter->setDebug(incomingFilter, debug);
+		outgoingFilter->setDebug(outgoingFilter, debug);
 	}
 	
 	incomingFilter->initialize(incomingFilter, incomingOptions);
@@ -250,7 +250,7 @@ static void netlinkReceiveMessage(struct sk_buff *skb) {
 	
 	nlh = (struct nlmsghdr *)skb->data;
 	messagePid	= nlh->nlmsg_pid;
-	if (debugPrint)
+	if (debug)
 		klog_info("got a message from Client: %d. Message Length: %d Data Length: %d.", messagePid, nlh->nlmsg_len, nlh->nlmsg_len - NLMSG_HDRLEN);
 	
 	//logContextInfo();
@@ -259,7 +259,7 @@ static void netlinkReceiveMessage(struct sk_buff *skb) {
 	incoming = options->getIncomingFilterOptions(options);
 	outgoing = options->getOutgoingFilterOptions(options);
 	
-	if (debugPrint) {
+	if (debug) {
 		klog_info("IncomingFilterOptions were: %s", incoming->description(incoming));
 		klog_info("OutgoingFilterOptions were: %s", outgoing->description(outgoing));
 	}
@@ -335,11 +335,11 @@ int packet_interceptor(struct sk_buff *skb,  struct net_device *dev,  struct pac
 	
 	
 	if (skb_mac_header(skbc) < skbc->head) {
-		if (debugPrint)
+		if (debug)
 			klog_error("BAD MAC HDR: skb_mac_header(skb) < skb->head");
 	} else {
 		if (skb_mac_header(skbc) + ETH_HLEN > skbc->data)
-			if (debugPrint)
+			if (debug)
 				klog_error("Bad mac header on %s mac_len: %d nohdr: %d skb_mac_header(skb) + ETH_HLEN > skb->data", getPacketTypeDescription(skbc->pkt_type), skbc->mac_len, skbc->nohdr);
 	}
 	
@@ -365,14 +365,14 @@ int packet_interceptor(struct sk_buff *skb,  struct net_device *dev,  struct pac
 	//klog_info("Got a packet that %s.", match ? "matched" : "didn't match");
 	
 	if (!match) {
-		if (debugPrint)
+		if (debug)
 			klog_info("Didn't match %s packet size %d mac_len %d.",  getPacketTypeDescription(skbc->pkt_type), skbc->len, skbc->mac_len);
 		goto unlock_and_free_skb;
 	}
 	
 	length = skbc->len;
 	
-	if (debugPrint)
+	if (debug)
 		klog_info(
 			"Matched a %s packet going [%d:%s]. Length: %zu.", 
 			skb_is_nonlinear(skbc) ? "nonlinear" : "linear",
@@ -395,7 +395,7 @@ int packet_interceptor(struct sk_buff *skb,  struct net_device *dev,  struct pac
 		goto free_buffer_unlock_and_free_skb;
 	}
 	
-	if (debugPrint)
+	if (debug)
 		klog_info("First byte of data to client is: %02X", buffer[0]);
 	
 	res = sendResponseToClient(pid, buffer, length);
