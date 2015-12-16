@@ -203,8 +203,8 @@ char *test_FilterOptions_GetDescription() {
 	filterOptions->setSrcMac(filterOptions, srcMac);
 	filterOptions->setDstMac(filterOptions, dstMac);
 	
-	filterOptions->setSrcIp(filterOptions, srcIp);
-	filterOptions->setDstIp(filterOptions, dstIp);
+	filterOptions->setSrcIp(filterOptions, ntohl(srcIp));
+	filterOptions->setDstIp(filterOptions, ntohl(dstIp));
 	
 	filterOptions->setSrcIp6(filterOptions, srcIp6);
 	filterOptions->setDstIp6(filterOptions, dstIp6);

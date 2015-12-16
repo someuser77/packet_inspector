@@ -195,6 +195,10 @@ bool matchAll(struct FilterExecuter *self, struct sk_buff *skb) {
 		return false;
 	}
 	
+	if (getTotalFilters(self) == 0) {
+		return false;
+	}
+	
 	if (skb->pkt_type != PACKET_OUTGOING) {
 		getEthhdr = getEthhdrByFunction;
 		getIphdr = getIphdrByFunction;
@@ -243,7 +247,7 @@ bool matchAll(struct FilterExecuter *self, struct sk_buff *skb) {
 				klog_error("Protocol was IP but header was null.");
 				return false;
 			}
-			if (debug) klog_info("IP: Src: %pI4 Dst: %pI4: Proto: %u", &ip->saddr, &ip->daddr, ip->protocol);
+			if (debug) klog_info("IP: Src: %pI4n Dst: %pI4n: Proto: %u", &ip->saddr, &ip->daddr, ip->protocol);
 			ITERATE_FILTERS(ipFilter, ipFilters(self), filters, ip);
 			ipProtocol = ip->protocol;
 			isIpProtocol = true;
@@ -357,7 +361,7 @@ static void initialize(struct FilterExecuter *self, FilterOptions *filterOptions
 		ipFilter->filter = PacketFilter_createIpSrcIpFilter(ip);
 		list_add(&ipFilter->filters, &impl(self)->ip);
 		impl(self)->totalFilters++;
-		if (debug) klog_info("Adding Filter Source IP = %pI4", &ip);
+		if (debug) klog_info("Adding Filter Source IP = %pI4h", &ip);
 	}
 	
 	if (filterOptions->isDstIpSet(filterOptions)) {
@@ -367,7 +371,7 @@ static void initialize(struct FilterExecuter *self, FilterOptions *filterOptions
 		ipFilter->filter = PacketFilter_createIpDstIpFilter(ip);
 		list_add(&ipFilter->filters, &impl(self)->ip);
 		impl(self)->totalFilters++;
-		if (debug) klog_info("Adding Filter Destination IP = %pI4", &ip);
+		if (debug) klog_info("Adding Filter Destination IP = %pI4h", &ip);
 	}
 	
 	if (filterOptions->isSrcIp6Set(filterOptions)) {
@@ -408,7 +412,10 @@ static void initialize(struct FilterExecuter *self, FilterOptions *filterOptions
 		impl(self)->totalFilters++;
 		if (debug) klog_info("Adding Filter Destination Port = %d", port);
 	}
+	
 	impl(self)->initialized = true;
+	
+	if (debug && getTotalFilters(self) == 0) klog_info("Filter was empty.");
 }
 
 FilterExecuter *FilterExecuter_Create(void) {
