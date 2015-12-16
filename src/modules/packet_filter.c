@@ -127,8 +127,8 @@ static char *get##NAME##Description(void) {				\
 DEFINE_DESCRIPTION_FUNC(SrcIp, "Src Ip");
 DEFINE_DESCRIPTION_FUNC(DstIp, "Dst Ip");
 DEFINE_DESCRIPTION_FUNC(Protocol, "Ip Protocol");
-//DEFINE_DESCRIPTION_FUNC(SrcPort, "Src Port");
-//DEFINE_DESCRIPTION_FUNC(DstPort, "Dst Port");
+DEFINE_DESCRIPTION_FUNC(SrcPort, "Src Port");
+DEFINE_DESCRIPTION_FUNC(DstPort, "Dst Port");
 
 typedef enum  {PacketFilter_Device, PacketFilter_Eth, PacketFilter_Ip, PacketFilter_Ip6, PacketFilter_Tcp, PacketFilter_Udp} PacketFilterType;
 
@@ -250,34 +250,36 @@ IpPacketFilter *PacketFilter_createIpProtocolFilter(unsigned char protocol) {
 	return filter;
 }
 
-static TcpPacketFilter *PacketFilter_createTcpPortFilter(bool (*filterPort)(const struct tcphdr * const packet, void *port), uint16_t port) {
+static TcpPacketFilter *PacketFilter_createTcpPortFilter(bool (*filterPort)(const struct tcphdr * const packet, void *port), char *(*getDescription)(void), uint16_t port) {
 	TcpPacketFilter *filter = create(PacketFilter_Tcp);
 	filter->params = alloc(sizeof(uint16_t));
 	memcpy(filter->params, &port, sizeof(uint16_t));
 	filter->matcher = filterPort;
+	filter->description = getDescription;
 	return filter;
 }
 
 TcpPacketFilter *PacketFilter_createTcpSrcPortFilter(uint16_t port) {
-	return PacketFilter_createTcpPortFilter(filterTcpSrcPort, port);
+	return PacketFilter_createTcpPortFilter(filterTcpSrcPort, getSrcPortDescription, port);
 }
 
 TcpPacketFilter *PacketFilter_createTcpDstPortFilter(uint16_t port) {
-	return PacketFilter_createTcpPortFilter(filterTcpDstPort, port);
+	return PacketFilter_createTcpPortFilter(filterTcpDstPort, getDstPortDescription, port);
 }
 
-static UdpPacketFilter *PacketFilter_createUdpPortFilter(bool (*filterPort)(const struct udphdr * const packet, void *port), uint16_t port) {
+static UdpPacketFilter *PacketFilter_createUdpPortFilter(bool (*filterPort)(const struct udphdr * const packet, void *port), char *(*getDescription)(void), uint16_t port) {
 	UdpPacketFilter *filter = create(PacketFilter_Udp);
 	filter->params = alloc(sizeof(uint16_t));
 	*((uint16_t *)filter->params) = port;
 	filter->matcher = filterPort;
+	filter->description = getDescription;
 	return filter;
 }
 
 UdpPacketFilter *PacketFilter_createUdpSrcPortFilter(uint16_t port) {
-	return PacketFilter_createUdpPortFilter(filterUdpSrcPort, port);
+	return PacketFilter_createUdpPortFilter(filterUdpSrcPort, getSrcPortDescription, port);
 }
 
 UdpPacketFilter *PacketFilter_createUdpDstPortFilter(uint16_t port) {
-	return PacketFilter_createUdpPortFilter(filterUdpDstPort, port);
+	return PacketFilter_createUdpPortFilter(filterUdpDstPort, getDstPortDescription, port);
 }
