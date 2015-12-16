@@ -43,7 +43,7 @@ static void buildPollDescriptors(struct FilterClient *self) {
 	
 	struct pollfd *pfds;
 	
-	pfds = (struct pollfd *)malloc(sizeof(struct pollfd) * impl(self)->nfds);
+	pfds = (struct pollfd *)malloc(sizeof(struct pollfd) * nfds);
 	
 	pfds[SOCKET_FD_INDEX].fd = impl(self)->socket_fd;
 	pfds[SOCKET_FD_INDEX].events = POLLIN | POLLERR | POLLHUP;
