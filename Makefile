@@ -26,7 +26,7 @@ all: $(TARGET)
 
 # makes the target, first the .a file (ar) and then the library via ranlib
 $(TARGET): $(OBJECTS) $(PARSERS)
-	$(CC) $(OBJECTS) $(TARGET_SRC) -o $@ $(LIBS)
+	$(CC) -g $(OBJECTS) $(TARGET_SRC) -o $@ $(LIBS)
 	mkdir -p parsers
 	cp src/parsers/*.so parsers
 	
