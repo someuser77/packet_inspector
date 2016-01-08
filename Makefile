@@ -1,4 +1,4 @@
-CFLAGS=-g -Wall -Wextra -Werror -Isrc/lib -Isrc/modules $(OPTFLAGS)
+CFLAGS=-g -Wall -Wextra -Werror -Isrc/lib -Isrc/modules -Isrc $(OPTFLAGS)
 LIBS=-ldl
 
 # all .c files in source and below
@@ -26,7 +26,7 @@ all: $(TARGET)
 
 # makes the target, first the .a file (ar) and then the library via ranlib
 $(TARGET): $(OBJECTS) $(PARSERS)
-	$(CC) -g $(OBJECTS) $(TARGET_SRC) -o $@ $(LIBS)
+	$(CC) $(CFLAGS) $(OBJECTS) $(TARGET_SRC) -o $@ $(LIBS)
 	mkdir -p parsers
 	cp src/parsers/*.so parsers
 	
