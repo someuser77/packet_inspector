@@ -12,7 +12,7 @@
 #include <linux/if.h>
 
 #ifndef IP6_ALEN
-#define IP6_ALEN 16
+#define IP6_ALEN 16 // sizeof(struct in6_addr)
 #endif
 
 typedef enum {
