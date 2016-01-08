@@ -267,6 +267,21 @@ static size_t serialize(struct FilterOptions *self, unsigned char *buffer, size_
 	return sizeof(FilterOptionsImpl);
 }
 
+static struct FilterOptions *clone(struct FilterOptions *self) {
+	unsigned char *buffer;
+	size_t buffer_size;
+	FilterOptions *result;
+	
+	buffer_size = self->serialize(self, NULL, 0);
+	buffer = (unsigned char *)alloc(buffer_size);
+	self->serialize(self, buffer, buffer_size);
+	
+	result = FilterOptions_Deserialize(buffer, buffer_size);
+	release(buffer);
+	
+	return result;
+}
+
 static bool equals(struct FilterOptions *self, struct FilterOptions *other) {
 	unsigned char mac1[ETH_ALEN] = {0};
 	unsigned char mac2[ETH_ALEN] = {0};
@@ -463,6 +478,8 @@ FilterOptions *FilterOptions_Create() {
 	filterOptions->isEmpty = isEmpty;
 	
 	filterOptions->equals = equals;
+
+	filterOptions->clone = clone;
 
 	return filterOptions;
 }

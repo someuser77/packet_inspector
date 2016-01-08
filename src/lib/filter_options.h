@@ -88,6 +88,8 @@ typedef struct FilterOptions {
 	
 	size_t (*serialize)(struct FilterOptions *self, unsigned char *buffer, size_t size);
 	
+	struct FilterOptions *(*clone)(struct FilterOptions *self);
+	
 } FilterOptions;
 
 FilterOptions *FilterOptions_Create(void);

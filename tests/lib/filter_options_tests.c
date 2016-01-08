@@ -245,6 +245,14 @@ char *test_FilterOptions_Serialization() {
 	return NULL;
 }
 
+char *test_FilterOptions_Clone() {
+	FilterOptions *other;
+	FillFilterOptions(filterOptions);
+	other = filterOptions->clone(filterOptions);
+	mu_assert(filterOptions->equals(filterOptions, other), "Clone returned a different value.");
+	return NULL;
+}
+
 char *test_FilterOptions_SetGetShutdown() {	
 	mu_assert(!filterOptions->isShutdownSet(filterOptions), "Shutdown was on but wasn't set.");
 	filterOptions->setShutdown(filterOptions);
@@ -323,6 +331,7 @@ char *all_tests() {
 	mu_run_test(test_FilterOptions_EqualsNull);
 	mu_run_test(test_FilterOptions_EqualsSelf);
 	mu_run_test(test_FilterOptions_EqualsAll);
+	mu_run_test(test_FilterOptions_Clone);
 	return NULL;
 }
 
