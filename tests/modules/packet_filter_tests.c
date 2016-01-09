@@ -118,7 +118,7 @@ char *test_PacketFilter_FilterDstIp() {
 }
 
 char *test_PacketFilter_FilterSrcIp6() {
-	const unsigned char const ip6[IP6_ALEN];
+	unsigned char ip6[IP6_ALEN];
 	inet_pton(AF_INET6, "2001:470:e5bf:1096:2:99:c1:10", &ip6);
 	Ip6PacketFilter *filter = PacketFilter_createIp6SrcIpFilter(ip6);
 	mu_assert(filter->match(filter, ip6_header(udp_ip6_packet)), "Source IPv6 did not match UDP packet.");
@@ -126,7 +126,7 @@ char *test_PacketFilter_FilterSrcIp6() {
 }
 
 char *test_PacketFilter_FilterDstIp6() {
-	const unsigned char const ip6[IP6_ALEN];
+	unsigned char ip6[IP6_ALEN];
 	inet_pton(AF_INET6, "2001:470:e5bf:1001:1cc7:73ff:65f5:a2f7", &ip6);
 	Ip6PacketFilter *filter = PacketFilter_createIp6DstIpFilter(ip6);
 	mu_assert(filter->match(filter, ip6_header(udp_ip6_packet)), "Destination IPv6 did not match UDP packet.");

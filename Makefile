@@ -31,7 +31,7 @@ $(TARGET): $(OBJECTS) $(PARSERS)
 	cp src/parsers/*.so parsers
 	
 test: tests
-	sh ./tests/runtests.sh
+	bash ./tests/runtests.sh
 
 tests: $(OBJECTS) $(TEST_OBJS) $(TESTS) $(TEST_PARSERS) 
 
