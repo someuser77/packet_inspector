@@ -13,6 +13,7 @@ enum {
 	Option_Device,
 	Option_Protocol,
 	Option_EtherType,
+	Option_Help,
 	
 	Option_Incoming_SrcMac,
 	Option_Incoming_DstMac,
@@ -40,6 +41,7 @@ static struct option long_options[] = {
 	{"device", required_argument, 0, Option_Device},
 	{"protocol", required_argument, 0, Option_Protocol},
 	{"ether-type", required_argument, 0, Option_EtherType},
+	{"help", no_argument, 0, Option_Help},
 	
 	{"incoming-src-mac", required_argument, 0, Option_Incoming_SrcMac}, 
 	{"incoming-dst-mac", required_argument, 0, Option_Incoming_DstMac},
@@ -67,6 +69,7 @@ static char *long_options_description[] = {
 	"Device to capture.",
 	"Protocol to capture.",
 	"Ethernet type to capture",
+	"Display this help screen",
 	
 	"Source MAC of incoming packets",
 	"Destination MAC of incoming packets",
@@ -89,9 +92,11 @@ static char *long_options_description[] = {
 
 static void displayUsage(void) {
 	int i;
+	printf("\n");
 	for (i = 0; i < Option_Total - Option_None - 1; i++) {
 		printf("--%s\t\t%s\n", long_options[i].name, long_options_description[i]);
 	}
+	printf("\n");
 }
 
 static bool parseMac(char *macStr, unsigned char mac[ETH_ALEN]) {
@@ -247,9 +252,9 @@ DirectionalFilterOptions *parseCommandLineArguments(int argc, char *argv[]) {
 				outgoing->setDstPort(outgoing, atoi(optarg));
 				break;
 			
+			case Option_Help:
 			case '?':
 				displayUsage();
-				printf("\n");
 				break;
 			default:
 				log_error ("?? getopt returned character code 0%o ??\n", opt);
