@@ -7,6 +7,8 @@
 #include "lib/parser.h"
 #include "lib/parser_repository.h"
 
+#define HEX_DUMP_LIMIT_BYTES 64
+
 void displayPacket(ParserRepository *repo, unsigned char *buffer, size_t size);
  
 #endif

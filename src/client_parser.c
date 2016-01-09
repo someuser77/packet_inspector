@@ -48,6 +48,13 @@ void hexDump(unsigned char *buffer, size_t size) {
 	const size_t line_length = 16;
 	size_t i, line_offset, j;
 	size_t padding;
+	size_t original_size = size;
+	bool truncated = false;
+	
+	if (size > HEX_DUMP_LIMIT_BYTES) {
+		size = HEX_DUMP_LIMIT_BYTES;
+		truncated = true;
+	}
 	
 	for (i = 0; i < size; i += line_length) {
 		
@@ -74,6 +81,10 @@ void hexDump(unsigned char *buffer, size_t size) {
 		}
 		
 		printf("\n");
+	}
+	
+	if (truncated) {
+		printf("\n... (truncated %zu bytes.)\n", original_size - HEX_DUMP_LIMIT_BYTES);
 	}
 }
 
