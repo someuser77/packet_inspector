@@ -24,7 +24,6 @@ int main(int argc, char *argv[]) {
 	options = parseCommandLineArguments(argc, argv);
 	
 	if (!options) {
-		log_error("Error parsing command line arguments.");
 		return EXIT_FAILURE;
 	}
 	

@@ -117,9 +117,9 @@ static bool parseMac(char *macStr, unsigned char mac[ETH_ALEN]) {
 }
 
 DirectionalFilterOptions *parseCommandLineArguments(int argc, char *argv[]) {
-	int opt, long_index;
+	int opt, long_index, port;
 	
-	DirectionalFilterOptions *options = DirectionalFilterOptions_Create();
+	DirectionalFilterOptions *options = NULL;
 	FilterOptions *incoming, *outgoing;
 	
 	int protocol;
@@ -129,6 +129,11 @@ DirectionalFilterOptions *parseCommandLineArguments(int argc, char *argv[]) {
 	
 	incoming = FilterOptions_Create();
 	outgoing = FilterOptions_Create();
+	
+	if (argc == 1) {
+		displayUsage();
+		return NULL;
+	}
 	
 	while ((opt = getopt_long_only(argc, argv, "", long_options, &long_index)) != -1) {
 		switch (opt) {
@@ -149,7 +154,7 @@ DirectionalFilterOptions *parseCommandLineArguments(int argc, char *argv[]) {
 				}
 				else {
 					log_error("Unsupported value for protocol: %s", optarg);
-					break;
+					goto failure;
 				}
 				
 				incoming->setProtocol(incoming, protocol);
@@ -158,100 +163,147 @@ DirectionalFilterOptions *parseCommandLineArguments(int argc, char *argv[]) {
 				break;
 				
 			case Option_EtherType:
-				if (strcmp(optarg, "ip") == 0) {
-					incoming->setEtherType(incoming, ETH_P_IP);
-					outgoing->setEtherType(outgoing, ETH_P_IP);
-				} else {
+				if (strcmp(optarg, "ip") != 0) {
 					log_error("Unsupported value for ethernet type: %s", optarg);
+					goto failure;
 				}
+				incoming->setEtherType(incoming, ETH_P_IP);
+				outgoing->setEtherType(outgoing, ETH_P_IP);
+				break;
+///// INCOMING
+			case Option_Incoming_SrcMac:
+				if (!parseMac(optarg, mac)) {
+					log_error("Error parsing mac address %s\n", optarg);
+					goto failure;
+				}
+				incoming->setSrcMac(incoming, mac);
 				break;
 				
-			case Option_Incoming_SrcMac:
-				if (parseMac(optarg, mac))
-					incoming->setSrcMac(incoming, mac);
-				else
-					log_error("Error parsing mac address %s\n", optarg);
-				break;
 			case Option_Incoming_DstMac:
-				if (parseMac(optarg, mac))
-					incoming->setDstMac(incoming, mac);
-				else
+				if (!parseMac(optarg, mac)) {
 					log_error("Error parsing mac address %s", optarg);
+					goto failure;
+				}
+				incoming->setDstMac(incoming, mac);
 				break;
+				
 			case Option_Incoming_SrcIp:
-				if (inet_pton(AF_INET, optarg, &ip) == 1)
-					incoming->setSrcIp(incoming, ntohl(ip));
-				else
+				if (inet_pton(AF_INET, optarg, &ip) != 1) {
 					log_error("Error parsing ip address %s", optarg);
+					goto failure;
+				}
+				incoming->setSrcIp(incoming, ntohl(ip));
 				break;
+				
 			case Option_Incoming_DstIp:
-				if (inet_pton(AF_INET, optarg, &ip) == 1)
-					incoming->setDstIp(incoming, ntohl(ip));
-				else
+				if (inet_pton(AF_INET, optarg, &ip) != 1) {
 					log_error("Error parsing ip address %s", optarg);
+					goto failure;
+				}
+				incoming->setDstIp(incoming, ntohl(ip));
 				break;
+				
 			case Option_Incoming_SrcIp6:
-				if (inet_pton(AF_INET6, optarg, &ip6) ==1)
-					incoming->setSrcIp6(incoming, ip6);
-				else
+				if (inet_pton(AF_INET6, optarg, &ip6) !=1) {
 					log_error("Error parsing ip6 address %s", optarg);
+					goto failure;
+				}
+				incoming->setSrcIp6(incoming, ip6);
 				break;
+				
 			case Option_Incoming_DstIp6:
-				if (inet_pton(AF_INET6, optarg, &ip6) ==1)
-					incoming->setDstIp6(incoming, ip6);
-				else
+				if (inet_pton(AF_INET6, optarg, &ip6) !=1) {
 					log_error("Error parsing ip6 address %s", optarg);
+					goto failure;
+				}
+				incoming->setDstIp6(incoming, ip6);					
 				break;
+				
 			case Option_Incoming_SrcPort:
+				port = atoi(optarg);
+				if (port == 0) {
+					log_error("Error parsing port %s.", optarg);
+					goto failure;
+				}
 				incoming->setSrcPort(incoming, atoi(optarg));
 				break;
+			
 			case Option_Incoming_DstPort:	
+				port = atoi(optarg);
+				if (port == 0) {
+					log_error("Error parsing port %s.", optarg);
+					goto failure;
+				}
 				incoming->setDstPort(incoming, atoi(optarg));
 				break;
-			
+///// OUTGOING				
 			case Option_Outgoing_SrcMac:
-				if (parseMac(optarg, mac))
-					outgoing->setSrcMac(outgoing, mac);
-				else
+				if (!parseMac(optarg, mac)) {
 					log_error("Error parsing mac address %s\n", optarg);
+					goto failure;
+				}
+				outgoing->setSrcMac(outgoing, mac);
 				break;
+				
 			case Option_Outgoing_DstMac:
-				if (parseMac(optarg, mac))
-					outgoing->setDstMac(outgoing, mac);
-				else
+				if (!parseMac(optarg, mac)) {
 					log_error("Error parsing mac address %s", optarg);
+					goto failure;
+				}
+				outgoing->setDstMac(outgoing, mac);
 				break;
+				
 			case Option_Outgoing_SrcIp:
-				if (inet_pton(AF_INET, optarg, &ip) == 1)
-					outgoing->setSrcIp(outgoing, ntohl(ip));
-				else
+				if (inet_pton(AF_INET, optarg, &ip) != 1) {
 					log_error("Error parsing ip address %s", optarg);
+					goto failure;
+				}
+				outgoing->setSrcIp(outgoing, ntohl(ip));
 				break;
+				
 			case Option_Outgoing_DstIp:
-				if (inet_pton(AF_INET, optarg, &ip) == 1)
-					outgoing->setDstIp(outgoing, ntohl(ip));
-				else
+				if (inet_pton(AF_INET, optarg, &ip) != 1) {
 					log_error("Error parsing ip address %s", optarg);
+					goto failure;
+				}
+				outgoing->setDstIp(outgoing, ntohl(ip));
 				break;
+				
 			case Option_Outgoing_SrcIp6:
-				if (inet_pton(AF_INET6, optarg, &ip6) ==1)
-					outgoing->setSrcIp6(outgoing, ip6);
-				else
+				if (inet_pton(AF_INET6, optarg, &ip6) !=1) {
 					log_error("Error parsing ip6 address %s", optarg);
+					goto failure;
+				}
+				outgoing->setSrcIp6(outgoing, ip6);
 				break;
+				
 			case Option_Outgoing_DstIp6:
-				if (inet_pton(AF_INET6, optarg, &ip6) ==1)
-					outgoing->setDstIp6(outgoing, ip6);
-				else
+				if (inet_pton(AF_INET6, optarg, &ip6) !=1) {
 					log_error("Error parsing ip6 address %s", optarg);
+					goto failure;
+				}
+				outgoing->setDstIp6(outgoing, ip6);					
 				break;
+				
 			case Option_Outgoing_SrcPort:
+				port = atoi(optarg);
+				if (port == 0) {
+					log_error("Error parsing port %s.", optarg);
+					goto failure;
+				}
 				outgoing->setSrcPort(outgoing, atoi(optarg));
 				break;
+			
 			case Option_Outgoing_DstPort:	
+				port = atoi(optarg);
+				if (port == 0) {
+					log_error("Error parsing port %s.", optarg);
+					goto failure;
+				}
 				outgoing->setDstPort(outgoing, atoi(optarg));
 				break;
 			
+
 			case Option_Help:
 			case '?':
 				displayUsage();
@@ -261,8 +313,13 @@ DirectionalFilterOptions *parseCommandLineArguments(int argc, char *argv[]) {
 		}
 	}
 	
+	options = DirectionalFilterOptions_Create();
 	options->setIncomingFilterOptions(options, incoming);
 	options->setOutgoingFilterOptions(options, outgoing);
-	
+	goto end;
+failure:	
+	FilterOptions_Destroy(&incoming);
+	FilterOptions_Destroy(&outgoing);
+end:
 	return options;
 }	
